@@ -2,7 +2,8 @@ Function.noop = () => {};
 
 function MessageBox(title, body, buttons, callbacks, removeDimmedOnExit = true) {
     if(u(".ovk-diag-cont").length > 0) return false;
-    
+
+    document.querySelector("html").style.overflowY = "hidden"
     let dialog = u(
     `<div class="ovk-diag-cont">
         <div class="ovk-diag">
@@ -23,6 +24,7 @@ function MessageBox(title, body, buttons, callbacks, removeDimmedOnExit = true) 
                     u("body").removeClass("dimmed");
                 }
                 u(".ovk-diag-cont").remove();
+                document.querySelector("html").style.overflowY = "scroll"
             };
             
             Reflect.apply(callbacks[callback], {

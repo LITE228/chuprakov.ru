@@ -95,10 +95,8 @@
                         {/ifset}
                     {/if}
                 </div>
-            {/ifset}	
-			<script>
-                document.getElementsByClassName("searchOptions")[0].style.height = document.getElementsByClassName("container_gray")[0].clientHeight+"px";
-            </script>
+            {/ifset}
+            	
             {ifset bottom}
                 {include bottom}
             {/ifset}

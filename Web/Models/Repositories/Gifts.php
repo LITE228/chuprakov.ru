@@ -33,6 +33,12 @@ class Gifts
         
         return new GiftCategory($cat);
     }
+
+    function getCategoriesCount(): int
+    {
+        $cats  = $this->cats->where("deleted", false);
+        return $cats->count();
+    }
     
     function getCategories(int $page, ?int $perPage = NULL, &$count = nullptr): \Traversable
     {

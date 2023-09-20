@@ -18,8 +18,11 @@
 			<div class="post-has-poll">
                 {_poll}
             </div>
-            <div class="post-has-note">    
+            <div class="post-has-note">
+
             </div>
+            <div class="post-has-videos"></div>
+
             <div n:if="$postOpts ?? true" class="post-opts">
                 {var $anonEnabled = OPENVK_ROOT_CONF['openvk']['preferences']['wall']['anonymousPosting']['enable']}
                 {if $hasSource}
@@ -69,6 +72,7 @@
             </div>
             <input type="file" class="postFileSel" id="postFilePic" name="_pic_attachment" accept="image/*" style="display:none;" />
             <input type="file" class="postFileSel" id="postFileVid" name="_vid_attachment" accept="video/*" style="display:none;" onchange="handleVideoTAreaUpdate(event, {$textAreaId})" />
+            <input type="hidden" name="videos" value="" />
 			<input type="hidden" name="poll" value="none" />
             <input type="hidden" id="note" name="note" value="none" />
             <input type="hidden" name="type" value="1" />
@@ -89,6 +93,7 @@
                         {_photo}
                     </a>
                     <a href="javascript:void(document.querySelector('#post-buttons{$textAreaId} input[name=_vid_attachment]').click());">
+                    <a id="videoAttachment">
                         <img src="/assets/packages/static/openvk/img/oxygen-icons/16x16/mimetypes/application-vnd.rn-realmedia.png" />
                         {_video}
                     </a>
@@ -114,6 +119,8 @@
     $(document).ready(() => {
         setupWallPostInputHandlers({$textAreaId});
     });
+
+    u("#post-buttons{$textAreaId} input[name='videos']")["nodes"].at(0).value = ""
 </script>
 
 {if $graffiti}

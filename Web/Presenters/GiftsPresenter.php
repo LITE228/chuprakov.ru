@@ -49,6 +49,7 @@ final class GiftsPresenter extends OpenVKPresenter
         
         $this->template->user      = $user;
         $this->template->iterator  = $cats;
+        $this->template->count     = $this->gifts->getCategoriesCount();
         $this->template->_template = "Gifts/Menu.xml";
     }
     

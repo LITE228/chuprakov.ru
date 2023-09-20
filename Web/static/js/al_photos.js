@@ -1,237 +1,198 @@
-let files = new FormData()
-let iter = 0;
+$(document).on("change", "#uploadButton", (e) => {
+    let iterator = 0
 
-function deletePhto(phto)
-{
-    document.querySelector("#photo"+phto).parentNode.removeChild(document.querySelector("#photo"+phto))
+    if(e.currentTarget.files.length > 10) {
+        MessageBox(tr("error"), tr("too_many_pictures"), [tr("ok")], [() => {Function.noop}])
+        return;
+    }
 
-    // проверка является ли фотка последним элементом. Если да, применить простой способ
-    if(files.get("blob_"+(phto+1)) == null) {
-        files.delete("blob_"+phto)
-        console.log("Last photo was removed.")
-
-        iter -= 1
-        // но юзер может удалить любую фотографию... ахуеть 
-    } else {
-        let tmpFiles = new FormData();
-
-        for(let it = 0; it < iter; it++) {
-            tmpFiles.append("blob_"+it, files.get("blob_"+it)) 
-            files.delete("blob_"+it)
+    for(const file of e.currentTarget.files) {
+        if(!file.type.startsWith('image/')) {
+            MessageBox(tr("error"), tr("only_images_accepted", escapeHtml(file.name)), [tr("ok")], [() => {Function.noop}])
+            return;
         }
 
-        let iterat = 0;
-        let iterenko = 0
-
-        for(let it = 0; it < iter; it++) {
-            if(tmpFiles.get("blob_"+it) != tmpFiles.get("blob_"+phto)) {
-                files.append("blob_"+iterenko, tmpFiles.get("blob_"+iterat))
-
-                if(document.querySelector("#photo"+it) != null) {
-                    document.querySelector("#photo"+it).setAttribute("id", "photo"+iterenko)
-
-                    document.querySelector("#photo"+iterenko+" td a").setAttribute("href", "javascript:deletePhto("+iterenko+")")
-                    document.querySelector("#photo"+iterenko+" td textarea").setAttribute("name", "desc_"+iterenko)
-                }
-                
-                iterenko += 1;
-                iterat += 1;
-            } else {
-                iterat += 1;
-                continue; // openvk.uk
-            }
+        if(file.size > 5 * 1024 * 1024) {
+            MessageBox(tr("error"), tr("max_filesize", 5), [tr("ok")], [() => {Function.noop}])
+            return;
         }
-
-        iter -= 1;
-        iterat = 0;
-
-        console.log("Photo was removed.")
     }
 
-    if(iter == 0) {
-        uploadButton.setAttribute("disabled", "disabled")
-    }
-}
-
-function multifileDescs()
-{
-    if(blob.files.length != 0) {
-        if(iter < 20 && blob.files.length < 20) {
-            for(let i = 0; i < blob.files.length; i++) {
-                files.append("blob_"+iter, blob.files[i])
-    
-                filesDescs.insertAdjacentHTML("beforeend", `
-                    <tr id="photo${iter}">
-                        <td width="120" valign="top">
-                            <img width="125" src="${window.URL.createObjectURL(blob.files[i])}">
-                            <br>
-                            <a href="javascript:deletePhto(${iter})" style="float:right">${tr("delete")}</a>
-                        </td>
-                        <td>
-                            <span>${blob.files[i].name.substr(0, 15)}${blob.files[i].name.length > 15 ? "..." : ""}</span>
-                            <br>
-                            <textarea style="margin: 0px; height: 50px; width: 259px; resize: none;" maxlength="255" name="desc_${iter}"></textarea>
-                        </td>
-                    </tr>
-                `)
-    
-                iter += 1
-            }
-
-            uploadButton.removeAttribute("disabled")
-        } else {
-            ajaxError(tr("too_many_photos"), "", "fail")
-        }
-
-    } else {
-        alert("Брух брух нанагыва")
+    if(document.querySelector(".whiteBox").style.display == "block") {
+        document.querySelector(".whiteBox").style.display = "none"
+        document.querySelector(".insertThere").append(document.getElementById("fakeButton"));
     }
 
-}
-
-function uploadPictures(album)
-{
-    uploadButton.setAttribute("disabled", "disabled")
-
-    if(files.get("hash") == null) {
-        files.append("hash", u("meta[name=csrf]").attr("value"))
-        files.append("album", album)
+    let photos = new FormData()
+    for(file of e.currentTarget.files) {
+        photos.append("photo_"+iterator, file)
+        iterator += 1
     }
 
-    for(let i = 0; i < iter; i++) {
-        if(document.querySelector("textarea[name=desc_"+i+"]") == null) continue;
+    photos.append("count", e.currentTarget.files.length)
+    photos.append("hash", u("meta[name=csrf]").attr("value"))
 
-        files.append("desc_"+i, document.querySelector("textarea[name=desc_"+i+"]").value)
-    }
-    
     let xhr = new XMLHttpRequest()
-    xhr.open("POST", "/photos/upload?album="+album)
+    xhr.open("POST", "/photos/upload?album="+document.getElementById("album").value)
+
+    xhr.onloadstart = () => {
+        document.querySelector(".insertPhotos").insertAdjacentHTML("beforeend", `<img id="loader" src="/assets/packages/static/openvk/img/loading_mini.gif">`)
+    }
+
     xhr.onload = () => {
         let result = JSON.parse(xhr.responseText)
 
-        if(result.error != undefined) {
-            ajaxError(tr(result.error + "_error"), tr(result.error + "_error_desc"), "fail")
+        if(result.success) {
+            u("#loader").remove()
+            let photosArr = result.photos
+
+            for(photo of photosArr) {
+                let table = document.querySelector(".insertPhotos")
+
+                table.insertAdjacentHTML("beforeend", `
+                <div id="photo" class="insertedPhoto" data-id="${photo.id}">
+                    <div class="uploadedImageDescription" style="float: left;">
+                        <span style="color: #464646;position: absolute;">${tr("description")}:</span>
+                        <textarea style="margin-left: 62px; resize: none;" maxlength="255"></textarea>
+                    </div>
+                    <div class="uploadedImage">
+                        <a href="${photo.link}" target="_blank"><img width="125" src="${photo.url}"></a>
+                        <a class="profile_link" style="width: 125px;" id="deletePhoto" data-id="${photo.vid}" data-owner="${photo.owner}">${tr("delete")}</a>
+                        <!--<div class="smallFrame" style="margin-top: 6px;">
+                            <div class="smallBtn">${tr("album_poster")}</div>
+                        </div>-->
+                    </div>
+                </div>
+                `)
+            }
+
+            document.getElementById("endUploading").style.display = "block"
         } else {
-            ajaxError(tr(result.success_msg), tr(result.success_msg + "_desc"), "succ")
+            u("#loader").remove()
+            MessageBox(tr("error"), escapeHtml(result.flash.message) ?? tr("error_uploading_photo"), [tr("ok")], [() => {Function.noop}])
+        }
+    }
 
-            for(const el of document.querySelectorAll("td > img")) {
-                window.URL.revokeObjectURL(el.src)
-            }
+    xhr.send(photos)
+})
+
+$(document).on("click", "#endUploading", (e) => {
+    let table = document.querySelector("#photos")
+    let data  = new FormData()
+    let arr   = new Map();
+    for(el of table.querySelectorAll("div#photo")) {
+        arr.set(el.dataset.id, el.querySelector("textarea").value)
+    }
+
+    data.append("photos", JSON.stringify(Object.fromEntries(arr)))
+    data.append("hash", u("meta[name=csrf]").attr("value"))
+
+    let xhr = new XMLHttpRequest()
+    // в самом вк на каждое изменение описания отправляется свой запрос, но тут мы экономим запросы
+    xhr.open("POST", "/photos/upload?act=finish&album="+document.getElementById("album").value)
+
+    xhr.onloadstart = () => {
+        e.currentTarget.setAttribute("disabled", "disabled")
+    }
+
+    xhr.onerror = () => {
+        MessageBox(tr("error"), tr("error_uploading_photo"), [tr("ok")], [() => {Function.noop}])
+    }
+
+    xhr.onload = () => {
+        let result = JSON.parse(xhr.responseText)
+
+        if(!result.success) {
+            MessageBox(tr("error"), escapeHtml(result.flash.message), [tr("ok")], [() => {Function.noop}])
+        } else {
+            document.querySelector(".page_content .insertPhotos").innerHTML = ""
+            document.getElementById("endUploading").style.display = "none"
+    
+            NewNotification(tr("photos_successfully_uploaded"), tr("click_to_go_to_album"), null, () => {window.location.assign(`/album${result.owner}_${result.album}`)})
             
-            for(let i = 0; i < iter; i++) {
-                files.delete("blob_"+i)
-                files.delete("desc_"+i)
-            }
-
-            uploadButton.setAttribute("disabled", "disabled")
-            filesDescs.innerHTML = ``
-            iter = 0;
-
+            document.querySelector(".whiteBox").style.display = "block"
+            document.querySelector(".insertAgain").append(document.getElementById("fakeButton"))
         }
 
+        e.currentTarget.removeAttribute("disabled")
     }
-    xhr.send(files)
-}
 
-function deletePhoto(photo, album)
-{
-    let body = `
-    ${tr('sure_deleting_photo')}<br>
-    <input type="checkbox" id="fully_delete" value="1">${tr("also_delete")}
-    `
+    xhr.send(data)
+})
 
-    MessageBox(tr('deleting_from_album'), body, [
-        tr('yes'),
-        tr('no')
-    ], [
-        (function() {
-            let xhr = new XMLHttpRequest()
-            xhr.open("POST", `/album${album}/remove_photo/${photo}`)
-            xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
-            xhr.onload = () => {
-                let result = JSON.parse(xhr.responseText)
+$(document).on("click", "#deletePhoto", (e) => {
+    let data  = new FormData()
+    data.append("hash", u("meta[name=csrf]").attr("value"))
 
-                if(result.error != undefined) {
-                    ajaxError(tr(result.error + "_error"), tr(result.error + "_error_desc"), "fail")
-                } else {
-                    // ajaxError(tr(result.success_msg), tr(result.success_msg + "_desc"), "succ")
+    let xhr = new XMLHttpRequest()
+    xhr.open("POST", `/photo${e.currentTarget.dataset.owner}_${e.currentTarget.dataset.id}/delete`)
 
-                    let dsc = document.querySelector("#photos_count")
-                    dsc.innerHTML = result.newCount + " " + tr("photos")
+    xhr.onloadstart = () => {
+        e.currentTarget.closest("div#photo").classList.add("lagged")
+    }
 
-                    document.querySelector("#photo"+album+"_"+photo).parentNode.removeChild(document.querySelector("#photo"+album+"_"+photo))
-                    
-                    if(document.querySelectorAll(".album-photo").length == 0) {
-                        location.reload()
-                    }
-                }
-            }
+    xhr.onerror = () => {
+        MessageBox(tr("error"), tr("unknown_error"), [tr("ok")], [() => {Function.noop}])
+    }
 
-            xhr.send("hash="+u("meta[name=csrf]").attr("value")+"&fully_delete="+fully_delete.checked)
-        }),
-        (function() {
-            u("#tmpPhDelF").remove();
-        }),
-    ]);
-}
+    xhr.onload = () => {
+        u(e.currentTarget.closest("div#photo")).remove()
 
-async function editAlbum(album)
-{
-    let info = await API.Photos.getAlbumInfo(album)
-    // console.log(info)
+        if(document.querySelectorAll("div#photo").length < 1) {
+            document.getElementById("endUploading").style.display = "none"
+            document.querySelector(".whiteBox").style.display = "block"
+            document.querySelector(".insertAgain").append(document.getElementById("fakeButton"))
+        }
+    }
 
-    let body = `
-        ${tr("name")}:
-        <input type="text" name="name" value="${info.name}" /><br><br>
-        ${tr("description")}:<br>
-        <textarea style="margin: 0px; height: 50px; width: 159px; resize: none;" name="desc">${info.description}</textarea><br><br>
-        <input onclick="deleteAlbum(${info.owner}, ${info.id})" class="button" type="button" value="${tr("delete_album")}">
-        `
+    xhr.send(data)
+})
 
-    MessageBox(tr('change_album'), body, [
-        tr('save'),
-        tr('cancel')
-    ], [
-        (async function() {
-            let name = document.querySelector("input[name=name]").value
-            let desc = document.querySelector("textarea[name=desc]").value
+$(document).on("dragover drop", (e) => {
+    e.preventDefault()
 
-            let res = await API.Photos.editAlbum(album, name, desc)
-            
-            albumName.innerHTML = res.name
-        }),
-        (function() {
-            u("#tmpPhDelF").remove();
-        }),
-    ]);
-}
+    return false;
+})
 
-function deleteAlbum(owner, album)
-{
-    u("body").removeClass("dimmed");
-    u(".ovk-diag-cont").remove();
+$(".container_gray").on("dragover", (e) => {
+    e.preventDefault()
+    document.querySelector("#fakeButton").classList.add("dragged")
+    document.querySelector("#fakeButton").value = tr("drag_files_here")
+})
 
-    let body = `
-        ${tr("sure_deleting_album")}
-    `
+$(".container_gray").on("dragleave", (e) => {
+    e.preventDefault()
+    document.querySelector("#fakeButton").classList.remove("dragged")
+    document.querySelector("#fakeButton").value = tr("upload_picts")
+})
 
-    MessageBox(tr('delete_album'), body, [
-        tr('yes'),
-        tr('no')
-    ], [
-        (async function() {
-            let xhr = new XMLHttpRequest()
-            xhr.open("POST", "/album"+owner+"_"+album+"/delete")
-            xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+$(".container_gray").on("drop", (e) => {
+    e.originalEvent.dataTransfer.dropEffect = 'move';
+    e.preventDefault()
 
-            xhr.onload = () => {
-                location.href = "/albums"+owner
-            }
+    $(".container_gray").trigger("dragleave")
 
-            xhr.send("hash="+u("meta[name=csrf]").attr("value"))
-        }),
-        (function() {
-            u("#tmpPhDelF").remove();
-        }),
-    ]);
-}
+    let files = e.originalEvent.dataTransfer.files
+
+    for(const file of files) {
+        if(!file.type.startsWith('image/')) {
+            MessageBox(tr("error"), tr("only_images_accepted", escapeHtml(file.name)), [tr("ok")], [() => {Function.noop}])
+            return;
+        }
+
+        if(file.size > 5 * 1024 * 1024) {
+            MessageBox(tr("error"), tr("max_filesize", 5), [tr("ok")], [() => {Function.noop}])
+            return;
+        }
+    }
+
+    document.getElementById("uploadButton").files = files
+    u("#uploadButton").trigger("change")
+})
+
+u(".container_gray").on("paste", (e) => {
+    if(e.clipboardData.files.length > 0 && e.clipboardData.files.length < 10) {
+        document.getElementById("uploadButton").files = e.clipboardData.files;
+        u("#uploadButton").trigger("change")
+    }
+})

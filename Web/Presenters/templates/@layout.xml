@@ -414,7 +414,6 @@
         {script "js/al_suggestions.js"}
 
         {ifset $thisUser}
-		    {script "js/al_photos.js"}
 			{script "js/al_friends.js"}
             {script "js/al_notifs.js"}
         {/ifset}

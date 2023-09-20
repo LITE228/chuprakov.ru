@@ -13,30 +13,29 @@
     {else}
         » <a href="/albums{$album->getOwner()->getId()}">{_albums}</a>
     {/if}
-    » <a id="albumName">{$album->getName()}</a>
+    » {$album->getName()}
 {/block}
 
 {block content}
     <a href="/album{$album->getPrettyId()}">
-        <b id="photos_count">{$album->getPhotosCount()} {_photos}</b>
+        <b>{$album->getPhotosCount()} фотографий</b>
     </a>
     
     {if !is_null($thisUser) && $album->canBeModifiedBy($thisUser) && !$album->isCreatedBySystem()}
         &nbsp;|&nbsp;
         <a href="/photos/upload?album={$album->getPrettyId()}">{_upload_photo}</a>
         &nbsp;|&nbsp;
-        <a href="javascript:editAlbum({$album->getId()})">{_edit_album}</a>
+        <a href="/album{$album->getPrettyId()}/edit">{_edit_album}</a>
     {/if}
     <br/><br/>
     {if $album->getPhotosCount() > 0}
-        <div class="container_gray album-flex infContainer">
+        <div class="container_gray album-flex">
             {foreach $photos as $photo}
                 {php if($photo->isDeleted()) continue; }
-                <div class="album-photo infObj" id="photo{$album->getPrettyId()}_{$photo->getId()}">
+                <div class="album-photo">
                     <a
                     n:if="!is_null($thisUser) && $album->canBeModifiedBy($thisUser)"
-                    onclick="deletePhoto({$photo->getId()}, {$album->getPrettyId()})"
-                    class="album-photo--delete">
+                    href="/album{$album->getPrettyId()}/remove_photo/{$photo->getId()}" class="album-photo--delete">
                         &times;
                     </a>
                     
