@@ -2,7 +2,7 @@
 namespace openvk\Web\Presenters;
 use openvk\Web\Models\Entities\{Comment, Notifications\MentionNotification, Photo, Video, User, Topic, Post};
 use openvk\Web\Models\Entities\Notifications\CommentNotification;
-use openvk\Web\Models\Repositories\{Comments, Clubs, Videos};
+use openvk\Web\Models\Repositories\{Comments, Clubs, Videos, Photos};
 
 final class CommentPresenter extends OpenVKPresenter
 {
@@ -69,18 +69,22 @@ final class CommentPresenter extends OpenVKPresenter
             }
         }
         
-        // TODO move to trait
-        try {
-            $photo = NULL;
-            if($_FILES["_pic_attachment"]["error"] === UPLOAD_ERR_OK) {
-                $album = NULL;
-                if($wall > 0 && $wall === $this->user->id)
-                    $album = (new Albums)->getUserWallAlbum($wallOwner);
-                
-                $photo = Photo::fastMake($this->user->id, $this->postParam("text"), $_FILES["_pic_attachment"], $album);
+        $photos = [];
+        if(!empty($this->postParam("photos"))) {
+            $un  = rtrim($this->postParam("photos"), ",");
+            $arr = explode(",", $un);
+
+            if(sizeof($arr) < 11) {
+                foreach($arr as $dat) {
+                    $ids = explode("_", $dat);
+                    $photo = (new Photos)->getByOwnerAndVID((int)$ids[0], (int)$ids[1]);
+
+                    if(!$photo || $photo->isDeleted())
+                        continue;
+
+                    $photos[] = $photo;
+                }
             }
-        } catch(ISE $ex) {
-            $this->flashFail("err", "Не удалось опубликовать комментарий", "Файл медиаконтента повреждён или слишком велик.");
         }
 
         $videos = [];
@@ -102,7 +106,7 @@ final class CommentPresenter extends OpenVKPresenter
             }
         }
         
-        if(empty($this->postParam("text")) && !$photo && !$video)
+        if(empty($this->postParam("text")) && sizeof($photos) < 1 && sizeof($videos) < 1)
             $this->flashFail("err", "Не удалось опубликовать комментарий", "Комментарий пустой или слишком большой.");
         
         try {
@@ -118,8 +122,8 @@ final class CommentPresenter extends OpenVKPresenter
             $this->flashFail("err", "Не удалось опубликовать комментарий", "Комментарий слишком большой.");
         }
         
-        if(!is_null($photo))
-            $comment->attach($photo);
+        foreach($photos as $photo)
+        	$comment->attach($photo);
         
         if(sizeof($videos) > 0)
             foreach($videos as $vid)
@@ -155,3 +159,4 @@ final class CommentPresenter extends OpenVKPresenter
         );
     }
 }
+

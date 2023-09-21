@@ -223,14 +223,16 @@ final class PhotosPresenter extends OpenVKPresenter
         $this->assertUserLoggedIn();
         $this->willExecuteWriteAction(true);
         
-        if(is_null($this->queryParam("album")))
-            $this->flashFail("err", "Неизвестная ошибка", "Не удалось сохранить фотографию в DELETED.", 500, true);
-        
-        [$owner, $id] = explode("_", $this->queryParam("album"));
-        $album = $this->albums->get((int) $id);
+        if(is_null($this->queryParam("album"))) {
+            $album = $this->albums->getUserWallAlbum($this->user->identity);
+        } else {
+            [$owner, $id] = explode("_", $this->queryParam("album"));
+            $album = $this->albums->get((int) $id);
+        }
+
         if(!$album)
             $this->flashFail("err", "Неизвестная ошибка", "Не удалось сохранить фотографию в DELETED.", 500, true);
-        if(is_null($this->user) || !$album->canBeModifiedBy($this->user->identity))
+        if(is_null($this->user) || !is_null($this->queryParam("album")) && !$album->canBeModifiedBy($this->user->identity))
             $this->flashFail("err", "Ошибка доступа", "Недостаточно прав для модификации данного ресурса.", 500, true);
         
         if($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -261,6 +263,9 @@ final class PhotosPresenter extends OpenVKPresenter
                 $this->flashFail("err", "Нету фотографии", "Выберите файл.", 500, true);
             
             $photos = [];
+            if((int)$this->postParam("count") > 10)
+                $this->flashFail("err", tr("no_photo"), "блять", 500, true);
+
             for($i = 0; $i < $this->postParam("count"); $i++) {
                 try {
                     $photo = new Photo;

@@ -15,7 +15,6 @@ async function setupNotificationListener() {
             notif = await API.Notifications.fetch();
         } catch(rejection) {
             if(rejection.message !== "Nothing to report") {
-                console.error(rejection);
                 break;
             }
             
