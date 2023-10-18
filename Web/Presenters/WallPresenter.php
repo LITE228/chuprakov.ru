@@ -2,8 +2,8 @@
 namespace openvk\Web\Presenters;
 use openvk\Web\Models\Exceptions\TooMuchOptionsException;
 use openvk\Web\Models\Entities\{Poll, Post, Photo, Video, Club, User};
-use openvk\Web\Models\Entities\Notifications\{MentionNotification, NewSuggestedPostsNotification, RepostNotification, WallPostNotification};
-use openvk\Web\Models\Repositories\{Posts, Users, Clubs, Albums, Notes, Comments, Videos, Photos};
+use openvk\Web\Models\Entities\Notifications\{MentionNotification, NewSuggestedPostsNotification, RepostNotification, WallPostNotification, PostAcceptedNotification};
+use openvk\Web\Models\Repositories\{Posts, Users, Clubs, Albums, Notes, Comments, Videos, Photos, Audios};
 use Chandler\Database\DatabaseConnection;
 use Nette\InvalidStateException as ISE;
 use Bhaktaraz\RSSGenerator\Item;
@@ -206,6 +206,12 @@ final class WallPresenter extends OpenVKPresenter
         if($this->user->identity->getNsfwTolerance() === User::NSFW_INTOLERANT)
             $queryBase .= " AND `nsfw` = 0";
 
+        if(($ignoredCount = $this->user->identity->getIgnoredSourcesCount()) > 0) {
+            $sources = implode("', '", $this->user->identity->getIgnoredSources(1, $ignoredCount, true));
+
+            $queryBase .= " AND `posts`.`wall` NOT IN ('$sources')";
+        }    
+
         $posts = DatabaseConnection::i()->getConnection()->query("SELECT `posts`.`id` " . $queryBase . " ORDER BY `created` DESC LIMIT " . $pPage . " OFFSET " . ($page - 1) * $pPage);
         $count = DatabaseConnection::i()->getConnection()->query("SELECT COUNT(*) " . $queryBase)->fetch()->{"COUNT(*)"};
         
@@ -351,8 +357,27 @@ final class WallPresenter extends OpenVKPresenter
                 }
             }
         }
+
+        $audios = [];
+
+        if(!empty($this->postParam("audios"))) {
+            $un  = rtrim($this->postParam("audios"), ",");
+            $arr = explode(",", $un);
+
+            if(sizeof($arr) < 11) {
+                foreach($arr as $dat) {
+                    $ids = explode("_", $dat);
+                    $audio = (new Audios)->getByOwnerAndVID((int)$ids[0], (int)$ids[1]);
+
+                    if(!$audio || $audio->isDeleted())
+                        continue;
+
+                    $audios[] = $audio;
+                }
+            }
+        }
         
-        if(empty($this->postParam("text")) && sizeof($photos) < 1 && sizeof($videos) < 1 && !$poll && !$note)
+        if(empty($this->postParam("text")) && sizeof($photos) < 1 && sizeof($videos) && sizeof($audios) < 1 && !$poll && !$note)
             $this->flashFail("err", tr("failed_to_publish_post"), tr("post_is_empty_or_too_big"));
         
         try {
@@ -388,7 +413,10 @@ final class WallPresenter extends OpenVKPresenter
             $post->attach($poll);
 
         if(!is_null($note))
-            $post->attach($note);    
+            $post->attach($note);
+        
+        foreach($audios as $audio)
+        	$post->attach($audio);    
         
         if($wall > 0 && $wall !== $this->user->identity->getId())
             (new WallPostNotification($wallOwner, $post, $this->user->identity))->emit();
@@ -651,5 +679,156 @@ final class WallPresenter extends OpenVKPresenter
                             "name"    => $post->getOwner()->getCanonicalName(),
                             "avatar"  => $post->getOwner()->getAvatarUrl()
                         ]]);
+    }
+
+    function renderAccept() {
+        $this->assertUserLoggedIn();
+        $this->willExecuteWriteAction(true);
+
+        if($_SERVER["REQUEST_METHOD"] !== "POST") {
+            header("HTTP/1.1 405 Method Not Allowed");
+            exit("Ты дебил, это точка апи.");
+        }
+
+        $id = $this->postParam("id");
+        $sign = $this->postParam("sign") == 1;
+        $content = $this->postParam("new_content");
+
+        $post = (new Posts)->get((int)$id);
+
+        if(!$post || $post->isDeleted())
+            $this->flashFail("err", "Error", tr("error_accepting_invalid_post"), NULL, true);
+
+        if($post->getSuggestionType() == 0)
+            $this->flashFail("err", "Error", tr("error_accepting_not_suggested_post"), NULL, true);
+
+        if($post->getSuggestionType() == 2)
+            $this->flashFail("err", "Error", tr("error_accepting_declined_post"), NULL, true);
+
+        if(!$post->canBePinnedBy($this->user->identity))
+            $this->flashFail("err", "Error", "Can't accept this post.", NULL, true);
+
+        $author = $post->getOwner();
+
+        $flags = 0;
+        $flags |= 0b10000000;
+
+        if($sign)
+            $flags |= 0b01000000;
+
+        $post->setSuggested(0);
+        $post->setCreated(time());
+        $post->setApi_Source_Name(NULL);
+        $post->setFlags($flags);
+
+        if(mb_strlen($content) > 0)
+            $post->setContent($content);
+
+        $post->save();
+
+        if($author->getId() != $this->user->id)
+            (new PostAcceptedNotification($author, $post, $post->getWallOwner()))->emit();
+
+        $this->returnJson([
+            "success"   => true,
+            "id"        => $post->getPrettyId(),
+            "new_count" => (new Posts)->getSuggestedPostsCount($post->getWallOwner()->getId())
+        ]);
+    }
+
+    function renderDecline() {
+        $this->assertUserLoggedIn();
+        $this->willExecuteWriteAction(true);
+
+        if($_SERVER["REQUEST_METHOD"] !== "POST") {
+            header("HTTP/1.1 405 Method Not Allowed");
+            exit("Ты дебил, это метод апи.");
+        }
+
+        $id = $this->postParam("id");
+        $post = (new Posts)->get((int)$id);
+
+        if(!$post || $post->isDeleted())
+            $this->flashFail("err", "Error", tr("error_declining_invalid_post"), NULL, true);
+
+        if($post->getSuggestionType() == 0)
+            $this->flashFail("err", "Error", tr("error_declining_not_suggested_post"), NULL, true);
+
+        if($post->getSuggestionType() == 2)
+            $this->flashFail("err", "Error", tr("error_declining_declined_post"), NULL, true);
+
+        if(!$post->canBePinnedBy($this->user->identity))
+            $this->flashFail("err", "Error", "Can't decline this post.", NULL, true);
+
+        $post->setSuggested(2);
+        $post->setDeleted(1);
+        $post->save();
+
+        $this->returnJson([
+            "success"   => true,
+            "new_count" => (new Posts)->getSuggestedPostsCount($post->getWallOwner()->getId())
+        ]);
+    }
+
+    function renderIgnoreSource()
+    {
+        $this->assertUserLoggedIn();
+        $this->willExecuteWriteAction(true);
+
+        if($_SERVER["REQUEST_METHOD"] !== "POST")
+            exit("куда ты полез?");
+
+        $owner         = $this->user->id;
+        $ignoredSource = (int)$this->postParam("source");
+
+        if($this->user->identity->getIgnoredSourcesCount() > 50)
+            $this->flashFail("err", "Error", tr("max_ignores", 50), null, true);
+
+        if($ignoredSource > 0) {
+            $ignoredSourceModel = (new Users)->get($ignoredSource);
+
+            if(!$ignoredSourceModel)
+                $this->flashFail("err", "Error", tr("invalid_user"), null, true);
+
+            if($ignoredSourceModel->getId() == $this->user->id)
+                $this->flashFail("err", "Error", tr("cant_ignore_self"), null, true);
+        } else {
+            $ignoredSourceModel = (new Clubs)->get(abs($ignoredSource));
+
+            if(!$ignoredSourceModel)
+                $this->flashFail("err", "Error", tr("invalid_club"), null, true);
+
+            if($ignoredSourceModel->isHideFromGlobalFeedEnabled()) {
+                $this->flashFail("err", "Error", tr("no_sense"), null, true);
+            }
+        }
+
+        if($ignoredSourceModel->isIgnoredBy($this->user->identity)) {
+            DatabaseConnection::i()->getContext()->table("ignored_sources")->where([
+                "owner"          => $this->user->id,
+                "ignored_source" => $ignoredSource
+            ])->delete();
+
+            $tr = "";
+
+            if($ignoredSource > 0)
+                $tr = tr("ignore_user");
+            else
+                $tr = tr("ignore_club");
+
+            $this->returnJson(["success" => true, "act" => "unignored", "text" => $tr]);
+        } else {
+            DatabaseConnection::i()->getContext()->table("ignored_sources")->insert([
+                "owner"          => $this->user->id,
+                "ignored_source" => $ignoredSource
+            ]);
+
+            if($ignoredSource > 0)
+                $tr = tr("unignore_user");
+            else
+                $tr = tr("unignore_club");
+
+            $this->returnJson(["success" => true, "act" => "ignored", "text" => $tr]);
+        }
     }
 }

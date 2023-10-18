@@ -27,10 +27,10 @@
     <hr/>
     
     <div style="width: 100%; min-height: 100px;" class="ovk-photo-details">
-        <div style="float: left; min-height: 100px; width: 70%;">
+        <div style="float: left; min-height: 100px; width: 68%;margin-left: 3px;">
             {include "../components/comments.xml", comments => $comments, count => $cCount, page => $cPage, model => "photos", parent => $photo, fromPost => true, custom_id => 999}
         </div>
-        <div style="float: left; min-height: 100px; width: 30%;">
+        <div style="float:right;min-height: 100px;width: 30%;margin-left: 1px;">
             <div>
                 <h4>{_"information"}</h4>
                 <span style="color: grey;">{_"info_description"}:</span>

@@ -10,6 +10,7 @@ use openvk\Web\Models\Repositories\Videos;
 use openvk\Web\Models\Repositories\Posts;
 use openvk\Web\Models\Repositories\Applications;
 use openvk\Web\Models\Repositories\Notes;
+use openvk\Web\Models\Repositories\Audios;
 use openvk\Web\Models\Repositories\Comments;
 use openvk\Web\Models\Entities\Club;
 use Chandler\Database\DatabaseConnection;
@@ -23,6 +24,7 @@ final class SearchPresenter extends OpenVKPresenter
     private $videos;
     private $apps;
     private $notes;
+    private $audios;
     
     function __construct(Users $users, Clubs $clubs)
     {
@@ -33,21 +35,20 @@ final class SearchPresenter extends OpenVKPresenter
         $this->videos   = new Videos;
         $this->apps     = new Applications;
         $this->notes    = new Notes;
+        $this->audios   = new Audios;
         
         parent::__construct();
     }
     
     function renderIndex(): void
     {
+        $this->assertUserLoggedIn();
+
         $query = $this->queryParam("query") ?? "";
         $type  = $this->queryParam("type") ?? "users";
         $sorter = $this->queryParam("sort") ?? "id";
         $invert = $this->queryParam("invert") == 1 ? "ASC" : "DESC";
         $page  = (int) ($this->queryParam("p") ?? 1);
-        
-       # $this->willExecuteWriteAction();
-        if($query != "")
-            $this->assertUserLoggedIn();
         
         # а блять?
 
@@ -57,7 +58,7 @@ final class SearchPresenter extends OpenVKPresenter
             "posts"    => "posts",
             "comments" => "comments",
             "videos"   => "videos",
-            "audios"   => "posts",
+            "audios"   => "audios",
             "apps"     => "apps",
             "notes"    => "notes"
         ];
@@ -72,7 +73,16 @@ final class SearchPresenter extends OpenVKPresenter
                 break;   
             case "rating":
                 $sort = "rating " . $invert;
-                break;   
+                case "length":
+                if($type != "audios") break;
+
+                $sort = "length " . $invert;
+                break;
+            case "listens":
+                if($type != "audios") break;
+
+                $sort = "listens " . $invert;
+                break;     
         }
 
         $parameters = [
@@ -99,6 +109,8 @@ final class SearchPresenter extends OpenVKPresenter
             "before"        => $this->queryParam("datebefore") != "" ? strtotime($this->queryParam("datebefore")) : NULL,
             "after"         => $this->queryParam("dateafter")  != "" ? strtotime($this->queryParam("dateafter")) : NULL,
             "gender"        => $this->queryParam("gender")     != "" && $this->queryParam("gender") != 2 ? $this->queryParam("gender") : NULL,
+            "only_performers" => $this->queryParam("only_performers") == "on" ? "1" : NULL,
+            "with_lyrics" => $this->queryParam("with_lyrics") == "on" ? true : NULL,
             "doNotShowDeleted" => true,
             "doNotShowPrivate" => true
         ];

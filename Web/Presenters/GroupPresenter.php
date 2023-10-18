@@ -3,7 +3,7 @@ namespace openvk\Web\Presenters;
 use openvk\Web\Models\Entities\{Club, Photo, Post};
 use Nette\InvalidStateException;
 use openvk\Web\Models\Entities\Notifications\ClubModeratorNotification;
-use openvk\Web\Models\Repositories\{Posts, Clubs, Users, Albums, Managers, Topics, Links};
+use openvk\Web\Models\Repositories\{Posts, Clubs, Users, Albums, Managers, Topics, Links, Audios};
 use Chandler\Security\Authenticator;
 
 final class GroupPresenter extends OpenVKPresenter
@@ -32,6 +32,8 @@ final class GroupPresenter extends OpenVKPresenter
             $this->template->albumsCount = (new Albums)->getClubAlbumsCount($club);
             $this->template->topics      = (new Topics)->getLastTopics($club, 3);
             $this->template->topicsCount = (new Topics)->getClubTopicsCount($club);
+            $this->template->audios      = (new Audios)->getByClub($club, 1, 3);
+                $this->template->audiosCount = (new Audios)->getClubCollectionSize($club);
 
             if(!is_null($this->user->identity) && $club->getWallType() == 2) {
                 if(!$club->canBeModifiedBy($this->user->identity))

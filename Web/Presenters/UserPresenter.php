@@ -13,6 +13,7 @@ use openvk\Web\Models\Repositories\Notes;
 use openvk\Web\Models\Repositories\Vouchers;
 use openvk\Web\Models\Repositories\FriendsLists;
 use openvk\Web\Models\Repositories\EmailChangeVerifications;
+use openvk\Web\Models\Repositories\Audios;
 use openvk\Web\Models\Exceptions\InvalidUserNameException;
 use openvk\Web\Util\Validator;
 use openvk\Web\Models\Entities\Notifications\{CoinsTransferNotification, RatingUpNotification};
@@ -58,6 +59,8 @@ final class UserPresenter extends OpenVKPresenter
             $this->template->videosCount = (new Videos)->getUserVideosCount($user);
             $this->template->notes       = (new Notes)->getUserNotes($user, 1, 4);
             $this->template->notesCount  = (new Notes)->getUserNotesCount($user);
+            $this->template->audios      = (new Audios)->getByUser($user, 1, 3);
+            $this->template->audiosCount = (new Audios)->getUserCollectionSize($user);
             
             $this->template->user = $user;
         }
@@ -474,6 +477,7 @@ final class UserPresenter extends OpenVKPresenter
                     "friends.add",
                     "wall.write",
                     "messages.write",
+                    "audios.read",
                 ];
                 foreach($settings as $setting) {
                     $input = $this->postParam(str_replace(".", "_", $setting));

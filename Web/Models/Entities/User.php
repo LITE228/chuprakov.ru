@@ -4,7 +4,7 @@ use morphos\Gender;
 use openvk\Web\Themes\{Themepack, Themepacks};
 use openvk\Web\Util\DateTime;
 use openvk\Web\Models\RowModel;
-use openvk\Web\Models\Entities\{Photo, Message, Correspondence, Gift};
+use openvk\Web\Models\Entities\{Photo, Message, Correspondence, Gift, Audio};
 use openvk\Web\Models\Repositories\{Applications, Bans, Comments, Notes, Posts, Faves, Users, Clubs, Albums, Gifts, Notifications, Videos, Photos};
 use openvk\Web\Models\Exceptions\InvalidUserNameException;
 use Nette\Database\Table\ActiveRow;
@@ -513,7 +513,7 @@ class User extends RowModel
                 "news",
                 "links",
                 "poster",
-                "apps"
+                "apps",
             ],
         ])->get($id);
     }
@@ -1315,6 +1315,63 @@ class User extends RowModel
         # TODO: Perenesti syuda vsyo ostalnoyie
 
         return $res;
+    }
+
+    function getRealId()
+    {
+        return $this->getId();
+    }
+
+    function getIgnoredSources(int $page = 1, int $perPage = 10, bool $onlyIds = false)
+    {
+        $sources = DatabaseConnection::i()->getContext()->table("ignored_sources")->where("owner", $this->getId())->page($page, $perPage);
+        $arr = [];
+
+        foreach($sources as $source) {
+            $ignoredSource = (int)$source->ignored_source;
+
+            if($ignoredSource > 0)
+                $ignoredSourceModel = (new Users)->get($ignoredSource);
+            else
+                $ignoredSourceModel = (new Clubs)->get(abs($ignoredSource));
+
+            if(!$ignoredSourceModel)
+                continue;
+
+            if(!$onlyIds)
+                $arr[] = $ignoredSourceModel;
+            else
+                $arr[] = $ignoredSourceModel->getRealId();
+        }
+
+        return $arr;
+    }
+
+    function getIgnoredSourcesCount()
+    {
+        return sizeof(DatabaseConnection::i()->getContext()->table("ignored_sources")->where("owner", $this->getId()));
+    }
+
+    function isIgnoredBy(User $user): bool
+    {
+        $ctx  = DatabaseConnection::i()->getContext();
+        $data = [
+            "owner"            => $user->getId(),
+            "ignored_source"   => $this->getId(),
+        ];
+
+        $sub  = $ctx->table("ignored_sources")->where($data);
+
+        if(!$sub->fetch()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function getUsersIgnoredCount()
+    {
+        return sizeof(DatabaseConnection::i()->getContext()->table("ignored_sources")->where("ignored_source", $this->getId()));
     }
     
 	use Traits\TBackDrops;

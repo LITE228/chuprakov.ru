@@ -105,6 +105,25 @@
     <div n:if="!is_null($suggestedPostsCountByEveryone) && $suggestedPostsCountByEveryone > 0" class="sugglist">
         <a href="/club{$club->getId()}/suggested" id="cound_r">{tr("suggested_by_everyone", $suggestedPostsCountByEveryone)}</a>
     </div>
+
+    <div>
+        <div class="content_title_expanded" onclick="hidePanel(this, {$audiosCount});">
+            {_audios}
+        </div>
+        <div>
+            <div class="content_subtitle">
+                {tr("audios_count", $audiosCount)}
+                <div style="float:right;">
+                    <a href="/audios-{$club->getId()}">{_all_title}</a>
+                </div>
+            </div>
+            <div class="content_list long">
+                <div class="audio" n:foreach="$audios as $audio" style="width: 100%;">
+                    {include "../Audio/player.xml", audio => $audio}
+                </div>
+            </div>
+        </div>
+    </div>
     
     {presenter "openvk!Wall->wallEmbedded", -$club->getId()}
 
@@ -193,6 +212,9 @@
                 <input type="submit" id="profile_link" value="{_"leave_community"}" />
             </form>
         {/if}
+        <a n:if="!$club->isHideFromGlobalFeedEnabled()" class="profile_link" style="display:block;" id="ignoreSomeone" data-id="-{$club->getId()}">
+            {if !$club->isIgnoredBy($thisUser)}{_ignore_club}{else}{_unignore_club}{/if}
+        </a>
     </div>
     <div>
         <div class="content_title_expanded" onclick="hidePanel(this);">
