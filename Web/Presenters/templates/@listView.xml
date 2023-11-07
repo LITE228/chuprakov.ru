@@ -78,7 +78,6 @@
                             {include "components/comment.xml", comment => $dat}
                         </div>      
                         {/if}
-                        {if $thisUser->getSearchAppear() == 1}
                         {include "components/paginator.xml", conf => (object) [
                             "page"     => $page,
                             "count"    => $count,
@@ -86,7 +85,6 @@
                             "perPage"  => $perPage ?? OPENVK_DEFAULT_PER_PAGE,
                             "atBottom" => true,
                         ]}
-                        {/if}
                     {else}
                         {ifset customErrorMessage}
                             {include customErrorMessage}

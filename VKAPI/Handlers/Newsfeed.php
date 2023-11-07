@@ -1,9 +1,9 @@
 <?php declare(strict_types=1);
 namespace openvk\VKAPI\Handlers;
 use Chandler\Database\DatabaseConnection;
-use openvk\Web\Models\Repositories\Posts as PostsRepo;
+use openvk\Web\Models\Repositories\Posts as PostsRepo, Users as UsersRepo, Clubs;
 use openvk\Web\Models\Entities\User;
-use openvk\VKAPI\Handlers\Wall;
+use openvk\VKAPI\Handlers\{Wall, Users, Groups};
 
 final class Newsfeed extends VKAPIRequestHandler
 {
@@ -56,6 +56,12 @@ final class Newsfeed extends VKAPIRequestHandler
         if($this->getUser()->getNsfwTolerance() === User::NSFW_INTOLERANT)
             $queryBase .= " AND `nsfw` = 0";
 
+        if(($ignoredCount = $this->getUser()->getIgnoredSourcesCount()) > 0) {
+            $sources = implode("', '", $this->getUser()->getIgnoredSources(1, $ignoredCount, true));
+
+            $queryBase .= " AND `posts`.`wall` NOT IN ('$sources')";
+        }    
+
         $start_from = empty($start_from) ? PHP_INT_MAX : $start_from;
         $start_time = empty($start_time) ? 0 : $start_time;
         $end_time = empty($end_time) ? PHP_INT_MAX : $end_time;
@@ -72,5 +78,53 @@ final class Newsfeed extends VKAPIRequestHandler
         $response->next_from = end($ids);
         
         return $response;
+    }
+
+    function getBanned(int $extended = 0, string $fields = "", string $name_case = "nom")
+    {
+        $this->requireUser();
+
+        $count = 50;
+        $offset = 0;
+
+        $banned = array_slice($this->getUser()->getIgnoredSources(1, $count + $offset, true), $offset);
+
+        if($extended == 0) {
+            $retArr/*d*/ = [
+                "groups"  => [],
+                "members" => [] # why
+            ];
+
+            foreach($banned as $ban) {
+                if($ban > 0) {
+                    $retArr["members"][] = $ban;
+                } else {
+                    $retArr["groups"][] = $ban;
+                }
+            }
+
+            return $retArr;
+        } else {
+            $retArr = [
+                "groups"   => [],
+                "profiles" => []
+            ];
+
+            $usIds = "";
+            $clubIds = "";
+
+            foreach($banned as $ban) {
+                if($ban > 0) {
+                    $usIds .= $ban . ",";
+                } else {
+                    $clubIds .= ($ban * -1) . ",";
+                }
+            }
+
+            $retArr["profiles"][] = (new Users)->get($usIds, $fields);
+            $retArr["groups"][]   = (new Groups)->getById($clubIds, $fields);
+
+            return $retArr;
+        }
     }
 }

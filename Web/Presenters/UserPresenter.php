@@ -59,8 +59,9 @@ final class UserPresenter extends OpenVKPresenter
             $this->template->videosCount = (new Videos)->getUserVideosCount($user);
             $this->template->notes       = (new Notes)->getUserNotes($user, 1, 4);
             $this->template->notesCount  = (new Notes)->getUserNotesCount($user);
-            $this->template->audios      = (new Audios)->getByUser($user, 1, 3);
+            $this->template->audios      = (new Audios)->getRandomThreeAudiosByEntityId($user->getId());
             $this->template->audiosCount = (new Audios)->getUserCollectionSize($user);
+            $this->template->audioStatus = $user->getCurrentAudioStatus();
             
             $this->template->user = $user;
         }
@@ -71,7 +72,7 @@ final class UserPresenter extends OpenVKPresenter
         $this->assertUserLoggedIn();
         
         $user = $this->users->get($id);
-        $page = abs($this->queryParam("p") ?? 1);
+        $page = abs((int)($this->queryParam("p") ?? 1));
         if(!$user)
             $this->notFound();
         elseif (!$user->getPrivacyPermission('friends.read', $this->user->identity ?? NULL) || !$user->canBeViewedBy($this->user->identity))
@@ -207,6 +208,7 @@ final class UserPresenter extends OpenVKPresenter
                 
                 if ($this->postParam("gender") <= 1 && $this->postParam("gender") >= 0)
                 $user->setSex($this->postParam("gender"));
+                $user->setAudio_broadcast_enabled($this->checkbox("broadcast_music"));
                 
                 if(!empty($this->postParam("phone")) && $this->postParam("phone") !== $user->getPhone()) {
                     if(!OPENVK_ROOT_CONF["openvk"]["credentials"]["smsc"]["enable"])
@@ -282,6 +284,7 @@ final class UserPresenter extends OpenVKPresenter
                 }
 
                 $user->setStatus(empty($this->postParam("status")) ? NULL : $this->postParam("status"));
+                $user->setAudio_broadcast_enabled($this->postParam("broadcast") == 1);
                 $user->save();
 
                 $this->returnJson([
@@ -481,7 +484,7 @@ final class UserPresenter extends OpenVKPresenter
                 ];
                 foreach($settings as $setting) {
                     $input = $this->postParam(str_replace(".", "_", $setting));
-                    $user->setPrivacySetting($setting, min(3, abs($input ?? $user->getPrivacySetting($setting))));
+                    $user->setPrivacySetting($setting, min(3, (int)abs((int)$input ?? $user->getPrivacySetting($setting))));
                 }
                 $prof = $this->postParam("profile_type") == 1 || $this->postParam("profile_type") == 0 ? (int)$this->postParam("profile_type") : 0;
                 $user->setProfile_type($prof);

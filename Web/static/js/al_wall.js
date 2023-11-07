@@ -160,18 +160,6 @@ function setupWallPostInputHandlers(id) {
             return;
         }
     });
-    
-    u("#wall-post-input" + id).on("input", function(e) {
-        var boost             = 5;
-        var textArea          = e.target;
-        textArea.style.height = "5px";
-        var newHeight = textArea.scrollHeight;
-        textArea.style.height = newHeight + boost + "px";
-        return;
-        
-        // revert to original size if it is larger (possibly changed by user)
-        // textArea.style.height = (newHeight > originalHeight ? (newHeight + boost) : originalHeight) + "px";
-    });
 
     u("#wall-post-input" + id).on("dragover", function(e) {
         e.preventDefault()
@@ -186,6 +174,18 @@ function setupWallPostInputHandlers(id) {
         return;
     });
 }
+
+u(document).on("input", "textarea", function(e) {
+    var boost             = 5;
+    var textArea          = e.target;
+    textArea.style.height = "5px";
+    var newHeight = textArea.scrollHeight;
+    textArea.style.height = newHeight + boost + "px";
+    return;
+
+    // revert to original size if it is larger (possibly changed by user)
+    // textArea.style.height = (newHeight > originalHeight ? (newHeight + boost) : originalHeight) + "px";
+});
 
 function OpenMiniature(e, photo, post, photo_id, type = "post") {
     /*
@@ -218,7 +218,7 @@ function OpenMiniature(e, photo, post, photo_id, type = "post") {
             <center style="margin-bottom: 8pt;">
                 <div class="ovk-photo-slide-left"></div>
                 <div class="ovk-photo-slide-right"></div>
-                <img src="${photo}" style="max-width: 100%; max-height: 60vh; user-select:none;" id="ovk-photo-img">
+                <img src="${photo}" style="max-width: 100%; max-height: 85vh; user-select:none;" id="ovk-photo-img">
             </center>
             <div class="ovk-photo-details">
                 <img src="/assets/packages/static/openvk/img/loading_mini.gif">

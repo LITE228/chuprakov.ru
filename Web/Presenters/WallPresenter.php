@@ -220,7 +220,7 @@ final class WallPresenter extends OpenVKPresenter
         $this->template->paginatorConf = (object) [
             "count"   => $count,
             "page"    => (int) ($_GET["p"] ?? 1),
-            "amount"  => sizeof($posts),
+            "amount"  => $posts->getRowCount(),
             "perPage" => $pPage,
         ];
         foreach($posts as $post)
@@ -377,7 +377,7 @@ final class WallPresenter extends OpenVKPresenter
             }
         }
         
-        if(empty($this->postParam("text")) && sizeof($photos) < 1 && sizeof($videos) && sizeof($audios) < 1 && !$poll && !$note)
+        if(empty($this->postParam("text")) && sizeof($photos) < 1 && sizeof($videos) < 1 && sizeof($audios) < 1 && !$poll && !$note)
             $this->flashFail("err", tr("failed_to_publish_post"), tr("post_is_empty_or_too_big"));
         
         try {
@@ -403,9 +403,9 @@ final class WallPresenter extends OpenVKPresenter
         }
         
         foreach($photos as $photo)
-        	$post->attach($photo);
+        	    $post->attach($photo);
         
-         if(sizeof($videos) > 0)
+        if(sizeof($videos) > 0)
             foreach($videos as $vid)
                 $post->attach($vid);
         

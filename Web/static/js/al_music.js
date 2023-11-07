@@ -8,10 +8,57 @@ function fastError(message) {
     MessageBox(tr("error"), message, [tr("ok")], [Function.noop])
 }
 
+// elapsed это вроде прошедшие, а оставшееся это remaining но ладно уже
 function getElapsedTime(fullTime, time) {
     let timer = fullTime - time
 
     return "-" + fmtTime(timer)
+}
+
+window.savedAudiosPages = {}
+
+class playersSearcher {
+    constructor(context_type, context_id) {
+        this.context_type = context_type
+        this.context_id = context_id
+        this.searchType = "by_name"
+        this.query = ""
+        this.page = 1
+        this.successCallback = () => {}
+        this.errorCallback = () => {}
+        this.beforesendCallback = () => {}
+        this.clearContainer = () => {}
+    }
+
+    execute() {
+        $.ajax({
+            type: "POST",
+            url: "/audios/context",
+            data: {
+                context: this.context_type,
+                hash: u("meta[name=csrf]").attr("value"),
+                page: this.page,
+                query: this.query,
+                context_entity: this.context_id,
+                type: this.searchType,
+                returnPlayers: 1,
+            },
+            beforeSend: () => {
+                this.beforesendCallback()
+            },
+            error: () => {
+                this.errorCallback()
+            },
+            success: (response) => {
+                this.successCallback(response, this)
+            }
+        })
+    }
+
+    movePage(page) {
+        this.page = page
+        this.execute()
+    }
 }
 
 class bigPlayer {
@@ -39,21 +86,27 @@ class bigPlayer {
 
     timeType = 0
 
+    findTrack(id) {
+        return this.tracks["tracks"].find(item => item.id == id)
+    }
+
     constructor(context, context_id, page = 1) {
         this.context["context_type"] = context
         this.context["context_id"] = context_id
-        this.context["playedPages"].push(Number(page))
+        this.context["playedPages"].push(String(page))
 
         this.nodes["thisPlayer"] = document.querySelector(".bigPlayer")
         this.nodes["thisPlayer"].classList.add("lagged")
+        this.nodes["audioPlayer"] = document.createElement("audio")
 
-        this.player = () => { return this.nodes["thisPlayer"].querySelector("audio.audio") }
+        this.player = () => { return this.nodes["audioPlayer"] }
         this.nodes["playButtons"] = this.nodes["thisPlayer"].querySelector(".playButtons")
         this.nodes["dashPlayer"] = dashjs.MediaPlayer().create()
 
         let formdata = new FormData()
         formdata.append("context", context)
         formdata.append("context_entity", context_id)
+        formdata.append("query", context_id)
         formdata.append("hash", u("meta[name=csrf]").attr("value"))
         formdata.append("page", page)
     
@@ -90,16 +143,15 @@ class bigPlayer {
         })
 
         u(this.nodes["playButtons"].querySelector(".playButton")).on("click", (e) => {
-            if(this.player().paused) {
+            if(this.player().paused)
                 this.play()
-            } else {
+            else
                 this.pause()
-            }
         })
 
         u(this.player()).on("timeupdate", (e) => {
             const time = this.player().currentTime;
-            const ps = Math.ceil((time * 100) / this.tracks["currentTrack"].length);
+            const ps = ((time * 100) / this.tracks["currentTrack"].length).toFixed(3)
             this.nodes["thisPlayer"].querySelector(".time").innerHTML = fmtTime(time)
             this.timeType == 0 ? this.nodes["thisPlayer"].querySelector(".elapsedTime").innerHTML = getElapsedTime(this.tracks["currentTrack"].length, time)
                 : null
@@ -120,9 +172,8 @@ class bigPlayer {
         })
 
         u(".bigPlayer .track > div").on("click mouseup", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+            if(this.tracks["currentTrack"] == null)
                 return
-            }
 
             let rect  = this.nodes["thisPlayer"].querySelector(".selectableTrack").getBoundingClientRect();
             
@@ -132,33 +183,66 @@ class bigPlayer {
             this.player().currentTime = time;
         })
 
-        u(".bigPlayer .trackPanel .track").on("mousemove", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+        u(".bigPlayer .trackPanel .selectableTrack").on("mousemove", (e) => {
+            if(this.tracks["currentTrack"] == null)
                 return
-            }
 
             let rect  = this.nodes["thisPlayer"].querySelector(".selectableTrack").getBoundingClientRect();
             
             const width = e.clientX - rect.left;
             const time = Math.ceil((width * this.tracks["currentTrack"].length) / (rect.right - rect.left));
 
-            document.querySelector(".bigPlayer .track .timeTip").style.display = "block"
-            document.querySelector(".bigPlayer .track .timeTip").innerHTML = fmtTime(time)
-            document.querySelector(".bigPlayer .track .timeTip").style.left = `min(${width - 15}px, 317.5px)`
+            document.querySelector(".bigPlayer .track .bigPlayerTip").style.display = "block"
+            document.querySelector(".bigPlayer .track .bigPlayerTip").innerHTML = fmtTime(time)
+            document.querySelector(".bigPlayer .track .bigPlayerTip").style.left = `min(${width - 15}px, 315.5px)`
         })
 
-        u(".bigPlayer .trackPanel .track").on("mouseleave", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+        u(".bigPlayer .nextButton").on("mouseover mouseleave", (e) => {
+            if(this.tracks["currentTrack"] == null)
+                return
+
+            if(e.type == "mouseleave") {
+                $(".nextTrackTip").remove()
                 return
             }
 
-            document.querySelector(".bigPlayer .track .timeTip").style.display = "none"
+            e.currentTarget.parentNode.insertAdjacentHTML("afterbegin", `
+                <div class="bigPlayerTip nextTrackTip" style="left: 5%;">
+                    ${ovk_proc_strtr(escapeHtml(this.findTrack(this.tracks["previousTrack"]).name), 20) ?? ""}
+                </div>
+            `)
+
+            document.querySelector(".nextTrackTip").style.display = "block"
+        })
+
+        u(".bigPlayer .backButton").on("mouseover mouseleave", (e) => {
+            if(this.tracks["currentTrack"] == null)
+                return
+
+            if(e.type == "mouseleave") {
+                $(".previousTrackTip").remove()
+                return
+            }
+
+            e.currentTarget.parentNode.insertAdjacentHTML("afterbegin", `
+                <div class="bigPlayerTip previousTrackTip" style="left: 8%;">
+                    ${ovk_proc_strtr(escapeHtml(this.findTrack(this.tracks["nextTrack"]).name), 20) ?? ""}
+                </div>
+            `)
+
+            document.querySelector(".previousTrackTip").style.display = "block"
+        })
+
+        u(".bigPlayer .trackPanel .selectableTrack").on("mouseleave", (e) => {
+            if(this.tracks["currentTrack"] == null)
+                return
+            
+            document.querySelector(".bigPlayer .track .bigPlayerTip").style.display = "none"
         })
 
         u(".bigPlayer .volumePanel > div").on("click mouseup mousemove", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+            if(this.tracks["currentTrack"] == null)
                 return
-            }
 
             if(e.type == "mousemove") {
                 let buttonsPresseed = _bsdnUnwrapBitMask(e.buttons)
@@ -169,15 +253,14 @@ class bigPlayer {
             let rect  = this.nodes["thisPlayer"].querySelector(".volumePanel .selectableTrack").getBoundingClientRect();
             
             const width = e.clientX - rect.left;
-            const volume = (width * 1) / (rect.right - rect.left);
+            const volume = Math.max(0, (width * 1) / (rect.right - rect.left));
 
             this.player().volume = volume;
         })
 
         u(".bigPlayer .elapsedTime").on("click", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+            if(this.tracks["currentTrack"] == null)
                 return
-            }
 
             this.timeType == 0 ? (this.timeType = 1) : (this.timeType = 0)
 
@@ -189,41 +272,33 @@ class bigPlayer {
         })
 
         u(".bigPlayer .additionalButtons .repeatButton").on("click", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+            if(this.tracks["currentTrack"] == null)
                 return
-            }
 
             e.currentTarget.classList.toggle("pressed")
 
-            if(e.currentTarget.classList.contains("pressed")) {
+            if(e.currentTarget.classList.contains("pressed"))
                 this.player().loop = true
-            } else {
+            else
                 this.player().loop = false
-            }
         })
 
         u(".bigPlayer .additionalButtons .shuffleButton").on("click", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+            if(this.tracks["currentTrack"] == null)
                 return
-            }
 
-            this.tracks["tracks"].sort(() => Math.random() - 0.5)
+            this.tracks["tracks"].sort(() => Math.random() - 0.59)
             this.setTrack(this.tracks["tracks"].at(0).id)
         })
 
         // хз что она делала в самом вк, но тут сделаем вид что это просто мут музыки
         u(".bigPlayer .additionalButtons .deviceButton").on("click", (e) => {
-            if(this.tracks["currentTrack"] == null) {
+            if(this.tracks["currentTrack"] == null)
                 return
-            }
 
             e.currentTarget.classList.toggle("pressed")
 
-            if(e.currentTarget.classList.contains("pressed")) {
-                this.player().muted = true
-            } else {
-                this.player().muted = false
-            }
+            this.player().muted = e.currentTarget.classList.contains("pressed")
         })
 
         u(".bigPlayer .arrowsButtons .nextButton").on("click", (e) => {
@@ -234,14 +309,23 @@ class bigPlayer {
             this.showNextTrack()
         })
 
+        u(".bigPlayer .trackInfo b").on("click", (e) => {
+            window.location.assign(`/search?query=${e.currentTarget.innerHTML}&type=audios&only_performers=on`)
+        })
+
         u(document).on("keydown", (e) => {
+            if(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) {
+                if(document.querySelector(".ovk-diag-cont") != null)
+                    return
+
+                e.preventDefault()
+            }
+
             switch(e.key) {
                 case "ArrowUp":
-                    e.preventDefault()
                     this.player().volume = Math.min(0.99, this.player().volume + 0.1)
                     break
                 case "ArrowDown":
-                    e.preventDefault()
                     this.player().volume = Math.max(0, this.player().volume - 0.1)
                     break
                 case "ArrowLeft":
@@ -250,87 +334,153 @@ class bigPlayer {
                 case "ArrowRight":
                     this.player().currentTime = this.player().currentTime + 3
                     break
-            }
-        })
-
-        u(document).on("keyup", (e) => {
-            switch(e.keyCode) {
-                case 32:
-                    e.preventDefault()
+                // буквально
+                case " ":
                     if(this.player().paused)
                         this.play()
                     else 
                         this.pause()
 
-                    break
+                    break;
+            }
+        })
+
+        u(document).on("keyup", (e) => {
+            if([87, 65, 83, 68, 82].includes(e.keyCode)) {
+                if(document.querySelector(".ovk-diag-cont") != null)
+                    return
+
+                e.preventDefault()
+            }
+
+            switch(e.keyCode) {
                 case 87:
                 case 65:
-                    e.preventDefault()
                     this.showPreviousTrack()
                     break
                 case 83:
                 case 68:
-                    e.preventDefault()
                     this.showNextTrack()
+                    break
+                case 82:
+                    document.querySelector(".bigPlayer .additionalButtons .repeatButton").click()
                     break
             }
         })
 
         u(this.player()).on("ended", (e) => {
             e.preventDefault()
+            
+            // в начало очереди
+            if(!this.tracks.nextTrack) {
+                if(!this.context["playedPages"].includes("1")) {
+                    $.ajax({
+                        type: "POST",
+                        url: "/audios/context",
+                        data: {
+                            context: this["context"].context_type,
+                            context_entity: this["context"].context_id,
+                            hash: u("meta[name=csrf]").attr("value"),
+                            page: 1
+                        },
+                        success: (response_2) => {
+                            this.tracks["tracks"] = response_2["items"].concat(this.tracks["tracks"])
+                            this.context["playedPages"].push(String(1))
+
+                            this.setTrack(this.tracks["tracks"][0].id)
+                        }
+                    })
+                } else {
+                    this.setTrack(this.tracks.tracks[0].id)
+                }
+                
+                return
+            }
 
             this.showNextTrack()
         })
+        
+        u(this.player()).on("loadstart", (e) => {
+            let playlist = this.context.context_type == "playlist_context" ? this.context.context_id : null
 
-        if(localStorage.volume != null && localStorage.volume < 1 && localStorage.volume > 0) {
+            let tempThisId = this.tracks.currentTrack.id
+            setTimeout(() => {
+                if(tempThisId != this.tracks.currentTrack.id) return
+
+                $.ajax({
+                    type: "POST",
+                    url: `/audio${this.tracks["currentTrack"].id}/listen`,
+                    data: {
+                        hash: u("meta[name=csrf]").attr("value"),
+                        playlist: playlist
+                    },
+                    success: (response) => {
+                        if(response.success) {
+                            console.info("Listen is counted.")
+        
+                            if(response.new_playlists_listens)
+                                document.querySelector("#listensCount").innerHTML = tr("listens_count", response.new_playlists_listens)
+                        } else
+                            console.info("Listen is not counted.")
+                    }
+                })
+            }, 2000)
+        })
+
+        if(localStorage.volume != null && localStorage.volume < 1 && localStorage.volume > 0)
             this.player().volume = localStorage.volume
-        } else {
+        else
             this.player().volume = 0.75
-        }
 
-        // В хромиумах - 'null', а в фурифоксах - null. Гыгы.
-        if(localStorage.playerTimeType == 'null' || localStorage.playerTimeType == null) {
+        if(localStorage.playerTimeType == 'null' || localStorage.playerTimeType == null)
             this.timeType = 0
-        } else {
+        else
             this.timeType = localStorage.playerTimeType
-        }
+
+        navigator.mediaSession.setActionHandler('play', () => { this.play() });
+        navigator.mediaSession.setActionHandler('pause', () => { this.pause() });
+        navigator.mediaSession.setActionHandler('previoustrack', () => { this.showPreviousTrack() });
+        navigator.mediaSession.setActionHandler('nexttrack', () => { this.showNextTrack() });
+        navigator.mediaSession.setActionHandler("seekto", (details) => {
+            this.player().currentTime = details.seekTime;
+        });
     }
 
     play() {
-        if(this.tracks["currentTrack"] == null) {
+        if(this.tracks["currentTrack"] == null)
             return
-        }
 
         document.querySelectorAll('audio').forEach(el => el.pause());
         document.querySelector(`.audioEmbed[data-realid='${this.tracks["currentTrack"].id}'] .audioEntry .playerButton .playIcon`) != null ? document.querySelector(`.audioEmbed[data-realid='${this.tracks["currentTrack"].id}'] .audioEntry .playerButton .playIcon`).classList.add("paused") : void(0)
         this.player().play()
         this.nodes["playButtons"].querySelector(".playButton").classList.add("pause")
         document.querySelector('link[rel="icon"], link[rel="shortcut icon"]').setAttribute("href", "/assets/packages/static/openvk/img/favicons/favicon24_paused.png")
+    
+        navigator.mediaSession.playbackState = "playing"
     }
     
     pause() {
-        if(this.tracks["currentTrack"] == null) {
+        if(this.tracks["currentTrack"] == null) 
             return
-        }
 
         document.querySelector(`.audioEmbed[data-realid='${this.tracks["currentTrack"].id}'] .audioEntry .playerButton .playIcon`) != null ? document.querySelector(`.audioEmbed[data-realid='${this.tracks["currentTrack"].id}'] .audioEntry .playerButton .playIcon`).classList.remove("paused") : void(0)
         this.player().pause()
         this.nodes["playButtons"].querySelector(".playButton").classList.remove("pause")
         document.querySelector('link[rel="icon"], link[rel="shortcut icon"]').setAttribute("href", "/assets/packages/static/openvk/img/favicons/favicon24_playing.png")
+    
+        navigator.mediaSession.playbackState = "paused"
     }
 
     showPreviousTrack() {
-        if(this.tracks["currentTrack"] == null || this.tracks["previousTrack"] == null) {
+        if(this.tracks["currentTrack"] == null || this.tracks["previousTrack"] == null)
             return
-        }
 
         this.setTrack(this.tracks["previousTrack"])
     }
 
     showNextTrack() {
-        if(this.tracks["currentTrack"] == null || this.tracks["nextTrack"] == null) {
+        if(this.tracks["currentTrack"] == null || this.tracks["nextTrack"] == null)
             return
-        }
         
         this.setTrack(this.tracks["nextTrack"])
     }
@@ -340,16 +490,28 @@ class bigPlayer {
         let prevButton = this.nodes["thisPlayer"].querySelector(".nextButton")
         let nextButton = this.nodes["thisPlayer"].querySelector(".backButton")
 
-        if(this.tracks["previousTrack"] == null) {
+        if(this.tracks["previousTrack"] == null)
             prevButton.classList.add("lagged")
-        } else {
+        else
             prevButton.classList.remove("lagged")
+
+        if(this.tracks["nextTrack"] == null)
+            nextButton.classList.add("lagged")
+        else 
+            nextButton.classList.remove("lagged")
+
+        if(document.querySelector(".nextTrackTip") != null) {
+            let track = this.findTrack(this.tracks["previousTrack"])
+            document.querySelector(".nextTrackTip").innerHTML = `
+                ${track != null ? ovk_proc_strtr(escapeHtml(track.name), 20) : ""}
+            `
         }
 
-        if(this.tracks["nextTrack"] == null) {
-            nextButton.classList.add("lagged")
-        } else {
-            nextButton.classList.remove("lagged")
+        if(document.querySelector(".previousTrackTip") != null) {
+            let track = this.findTrack(this.tracks["nextTrack"])
+            document.querySelector(".previousTrackTip").innerHTML = `
+                ${track != null ? ovk_proc_strtr(escapeHtml(track.name ?? ""), 20) : ""}
+            `
         }
     }
 
@@ -375,11 +537,10 @@ class bigPlayer {
         let indexOfCurrentTrack = this.tracks["tracks"].indexOf(obj) ?? 0
         this.tracks["nextTrack"] = this.tracks["tracks"].at(indexOfCurrentTrack + 1) != null ? this.tracks["tracks"].at(indexOfCurrentTrack + 1).id : null
 
-        if(indexOfCurrentTrack - 1 >= 0) {
+        if(indexOfCurrentTrack - 1 >= 0)
             this.tracks["previousTrack"] = this.tracks["tracks"].at(indexOfCurrentTrack - 1).id
-        } else {
+        else
             this.tracks["previousTrack"] = null
-        }
 
         if(this.tracks["nextTrack"] == null && Math.max(...this.context["playedPages"]) < this.context["pagesCount"]
             || this.tracks["previousTrack"] == null && (Math.min(...this.context["playedPages"]) > 1)) {
@@ -393,11 +554,10 @@ class bigPlayer {
             formdata.append("context_entity", this.context["context_id"])
             formdata.append("hash", u("meta[name=csrf]").attr("value"))
 
-            if(lesser) {
+            if(lesser)
                 formdata.append("page", Math.min(...this.context["playedPages"]) - 1)
-            } else {
+            else
                 formdata.append("page", Number(Math.max(...this.context["playedPages"])) + 1)
-            }
             
             ky.post("/audios/context", {
                 hooks: {
@@ -405,20 +565,18 @@ class bigPlayer {
                         async (_request, _options, response) => {
                             let newArr = await response.json()
 
-                            if(lesser) {
+                            if(lesser)
                                 this.tracks["tracks"] = newArr["items"].concat(this.tracks["tracks"])
-                            } else {
+                            else
                                 this.tracks["tracks"] = this.tracks["tracks"].concat(newArr["items"])
-                            }
 
-                            this.context["playedPages"].push(Number(newArr["page"]))
+                            this.context["playedPages"].push(String(newArr["page"]))
 
-                            if(lesser) {
+                            if(lesser)
                                 this.tracks["previousTrack"] = this.tracks["tracks"].at(this.tracks["tracks"].indexOf(obj) - 1).id
-                            } else {
+                            else
                                 this.tracks["nextTrack"] = this.tracks["tracks"].at(indexOfCurrentTrack + 1) != null ? this.tracks["tracks"].at(indexOfCurrentTrack + 1).id : null
-                            }
-
+                            
                             this.updateButtons()
                             console.info("Context is successfully loaded")
                         }
@@ -428,9 +586,8 @@ class bigPlayer {
             })
         }
 
-        if(this.tracks["currentTrack"].available == false || this.tracks["currentTrack"].withdrawn) {
+        if(this.tracks["currentTrack"].available == false || this.tracks["currentTrack"].withdrawn)
             this.showNextTrack()
-        }
 
         this.updateButtons()
 
@@ -445,38 +602,16 @@ class bigPlayer {
 
         this.play()
 
-        document.querySelector(`.audioEmbed[data-realid='${this.tracks["currentTrack"].id}'] .audioEntry`) != null ? 
-            document.querySelector(`.audioEmbed[data-realid='${this.tracks["currentTrack"].id}'] .audioEntry`).classList.add("nowPlaying") :
-            null
+        let playerAtPage = document.querySelector(`.audioEmbed[data-realid='${this.tracks["currentTrack"].id}'] .audioEntry`)
+        if(playerAtPage != null)
+            playerAtPage.classList.add("nowPlaying")
 
         document.querySelectorAll(`.audioEntry .playerButton .playIcon.paused`).forEach(el => el.classList.remove("paused"))
+        
         localStorage.lastPlayedTrack = this.tracks["currentTrack"].id
 
-        if(this.timeType == 1) {
+        if(this.timeType == 1)
             this.nodes["thisPlayer"].querySelector(".elapsedTime").innerHTML = fmtTime(this.tracks["currentTrack"].length)
-        }
-
-        let tempThisTrack = this.tracks["currentTrack"]
-        // если трек слушали больше 10 сек.
-        setTimeout(() => {
-            if(tempThisTrack.id != this.tracks["currentTrack"].id)
-                return;
-
-            $.ajax({
-                type: "POST",
-                url: `/audio${id}/listen`,
-                data: {
-                    hash: u("meta[name=csrf]").attr("value"),
-                },
-                success: (response) => {
-                    if(response.success) {
-                        console.info("Listen is counted.")
-                    } else {
-                        console.info("Listen is not counted.")
-                    }
-                }
-            })
-        }, "10000")
 
         let album = document.querySelector(".playlistBlock")
 
@@ -486,17 +621,61 @@ class bigPlayer {
             album: album == null ? "OpenVK Audios" : album.querySelector(".playlistInfo h4").innerHTML,
             artwork: [{ src: album == null ? "/assets/packages/static/openvk/img/song.jpg" : album.querySelector(".playlistCover img").src }],
         });
+
+        navigator.mediaSession.setPositionState({
+            duration: this.tracks["currentTrack"].length
+        })
     }
 }
 
 document.addEventListener("DOMContentLoaded", function() {
     if(document.querySelector(".bigPlayer") != null) {
         let context = document.querySelector("input[name='bigplayer_context']")
+
+        if(!context)
+            return
+        
         let type = context.dataset.type
         let entity = context.dataset.entity
-        
         window.player = new bigPlayer(type, entity, context.dataset.page)
+
+        let bigplayer = document.querySelector('.bigPlayerDetector')
+
+        let bigPlayerObserver = new IntersectionObserver(entries => {
+            entries.forEach(x => {
+                if(x.isIntersecting) {
+                    document.querySelector('.bigPlayer').classList.remove("floating")
+                    document.querySelector('.searchOptions .searchList').classList.remove("floating")
+                    document.querySelector('.bigPlayerDetector').style.marginTop = "0px"
+                } else {
+                    document.querySelector('.searchOptions .searchList').classList.add("floating")
+                    document.querySelector('.bigPlayer').classList.add("floating")
+                    document.querySelector('.bigPlayerDetector').style.marginTop = "46px"
+                }
+            });
+        }, {
+            root: null,
+            rootMargin: "0px",
+            threshold: 0
+        });
+
+        if(bigplayer != null)
+            bigPlayerObserver.observe(bigplayer);
 }})
+
+$(document).on("click", ".audioEmbed > *", (e) => {
+    const player = e.currentTarget.closest(".audioEmbed")
+
+    if(player.classList.contains("inited")) return
+
+    initPlayer(player.id.replace("audioEmbed-", ""), 
+    JSON.parse(player.dataset.keys), 
+    player.dataset.url, 
+    player.dataset.length)
+
+    if(e.target.classList.contains("playIcon"))
+        e.target.click()
+})
 
 function initPlayer(id, keys, url, length) {
     document.querySelector(`#audioEmbed-${ id}`).classList.add("inited")
@@ -510,16 +689,13 @@ function initPlayer(id, keys, url, length) {
 
     if(document.querySelector(".bigPlayer") != null) {
         playButton.on("click", () => {
-            if(window.player.tracks["tracks"] == null) {
+            if(window.player.tracks["tracks"] == null)
                 return
-            }
 
-            if(window.player.tracks["currentTrack"] == null || window.player.tracks["currentTrack"].id != playerObject.dataset.realid) {
+            if(window.player.tracks["currentTrack"] == null || window.player.tracks["currentTrack"].id != playerObject.dataset.realid)
                 window.player.setTrack(playerObject.dataset.realid)
-                playButton.addClass("paused")
-            } else {
+            else
                 document.querySelector(".bigPlayer .playButton").click()
-            }
         })
 
         return
@@ -546,43 +722,101 @@ function initPlayer(id, keys, url, length) {
 
     u(audio).on("timeupdate", () => {
         const time = audio.currentTime;
-        const ps = Math.ceil((time * 100) / length);
+        const ps = ((time * 100) / length).toFixed(3);
         volumeSpan.html(fmtTime(Math.floor(time)));
-        if (ps <= 100)
-            trackDiv.nodes[0].style.width = `${ ps}%`;
 
-        if(audio.paused) {
-            playButtonImageUpdate()
-        }
+        if (ps <= 100)
+            playerObject.querySelector(".lengthTrack .slider").style.left = `${ ps}%`;
     });
+
+    u(audio).on("volumechange", (e) => {
+        const volume = audio.volume;
+        const ps = Math.ceil((volume * 100) / 1);
+
+        if (ps <= 100)
+            playerObject.querySelector(".volumeTrack .slider").style.left = `${ ps}%`;
+    })
 
     const playButtonImageUpdate = () => {
         if (!audio.paused) {
             playButton.addClass("paused")
-            /*$.post(`/audio${ id}/listen`, {
-                hash: u("meta[name=csrf]").attr("value")
-            });*/
+            document.querySelector('link[rel="icon"], link[rel="shortcut icon"]').setAttribute("href", "/assets/packages/static/openvk/img/favicons/favicon24_paused.png")
         } else {
             playButton.removeClass("paused")
+            document.querySelector('link[rel="icon"], link[rel="shortcut icon"]').setAttribute("href", "/assets/packages/static/openvk/img/favicons/favicon24_playing.png")
         }
         
         if(!$(`#audioEmbed-${ id}`).hasClass("havePlayed")) {
             $(`#audioEmbed-${ id}`).addClass("havePlayed")
 
             $(`#audioEmbed-${ id} .track`).toggle()
+
+            $.post(`/audio${playerObject.dataset.realid}/listen`, {
+                hash: u("meta[name=csrf]").attr("value")
+            });
         }
     };
 
-    u(audio).on("play", playButtonImageUpdate);
-    u(audio).on(["pause", "ended", "suspended"], playButtonImageUpdate);
+    const hideTracks = () => {
+        $(`#audioEmbed-${ id} .track`).toggle()
+        $(`#audioEmbed-${ id}`).removeClass("havePlayed")
+    }
 
-    u(`#audioEmbed-${ id} .track > div`).on("click", (e) => {
+    u(audio).on("play", playButtonImageUpdate);
+    u(audio).on(["pause", "suspended"], playButtonImageUpdate);
+    u(audio).on("ended", (e) => {
+        let thisPlayer = e.target.closest(".audioEmbed")
+        let nextPlayer = null
+        if(thisPlayer.closest(".attachment") != null) {
+            try {
+                nextPlayer = thisPlayer.closest(".attachment").nextElementSibling.querySelector(".audioEmbed")
+            } catch(e) {return}
+        } else if(thisPlayer.closest(".audio") != null) {
+            try {
+                nextPlayer = thisPlayer.closest(".audio").nextElementSibling.querySelector(".audioEmbed")
+            } catch(e) {return}
+        } else {
+            nextPlayer = thisPlayer.nextElementSibling
+        }
+
+        playButtonImageUpdate()
+
+        if(!nextPlayer) return
+
+        initPlayer(nextPlayer.id.replace("audioEmbed-", ""), 
+            JSON.parse(nextPlayer.dataset.keys), 
+            nextPlayer.dataset.url, 
+            nextPlayer.dataset.length)
+        
+        nextPlayer.querySelector(".playIcon").click()
+        hideTracks()
+    })
+
+    u(`#audioEmbed-${ id} .lengthTrack > div`).on("click", (e) => {
         let rect  = document.querySelector("#audioEmbed-" + id + " .selectableTrack").getBoundingClientRect();
         const width = e.clientX - rect.left;
         const time = Math.ceil((width * length) / (rect.right - rect.left));
 
         audio.currentTime = time;
     });
+
+    u(`#audioEmbed-${ id} .volumeTrack > div`).on("click mouseup mousemove", (e) => {
+        if(e.type == "mousemove") {
+            let buttonsPresseed = _bsdnUnwrapBitMask(e.buttons)
+            if(!buttonsPresseed[0])
+                return;
+        }
+
+        let rect = document.querySelector("#audioEmbed-" + id + " .volumeTrack").getBoundingClientRect();
+        
+        const width = e.clientX - rect.left;
+        const volume = (width * 1) / (rect.right - rect.left);
+
+        audio.volume = volume;
+    });
+
+    audio.volume = localStorage.volume ?? 0.75
+    u(audio).trigger("volumechange")
 }
 
 $(document).on("click", ".musicIcon.edit-icon", (e) => {
@@ -592,6 +826,7 @@ $(document).on("click", ".musicIcon.edit-icon", (e) => {
     let name = e.currentTarget.dataset.title
     let genre = player.dataset.genre
     let lyrics = e.currentTarget.dataset.lyrics
+    
     MessageBox(tr("edit"), `
         <div>
             ${tr("performer")}
@@ -610,7 +845,7 @@ $(document).on("click", ".musicIcon.edit-icon", (e) => {
 
         <div style="margin-top: 11px">
             ${tr("lyrics")}
-            <textarea name="lyrics" maxlength="500">${lyrics ?? ""}</textarea>
+            <textarea name="lyrics" maxlength="5000" style="max-height: 200px;">${lyrics ?? ""}</textarea>
         </div>
 
         <div style="margin-top: 11px">
@@ -646,30 +881,55 @@ $(document).on("click", ".musicIcon.edit-icon", (e) => {
                         perf.innerHTML = escapeHtml(response.new_info.performer)
                         perf.setAttribute("href", "/search?query=&type=audios&sort=id&only_performers=on&query="+response.new_info.performer)
                         
-                        e.currentTarget.setAttribute("data-performer", escapeHtml(response.new_info.performer))
+                        e.target.setAttribute("data-performer", escapeHtml(response.new_info.performer))
+                        
                         let name = player.querySelector(".title")
                         name.innerHTML = escapeHtml(response.new_info.name)
 
-                        e.currentTarget.setAttribute("data-title", escapeHtml(response.new_info.name))
+                        e.target.setAttribute("data-title", escapeHtml(response.new_info.name))
                         
-                        if(player.querySelector(".lyrics") != null) {
-                            player.querySelector(".lyrics").innerHTML = response.new_info.lyrics
-                            player.querySelector(".title").classList.ad
+                        if(response.new_info.lyrics_unformatted != "") {
+                            if(player.querySelector(".lyrics") != null) {
+                                player.querySelector(".lyrics").innerHTML = response.new_info.lyrics
+                                player.querySelector(".title").classList.add("withLyrics")
+                            } else {
+                                player.insertAdjacentHTML("beforeend", `
+                                    <div class="lyrics" n:if="!empty($audio->getLyrics())">
+                                        ${response.new_info.lyrics}
+                                    </div>
+                                `)
+    
+                                player.querySelector(".title").classList.add("withLyrics")
+                            }
                         } else {
-                            player.insertAdjacentHTML("beforeend", `
-                                <div class="lyrics" n:if="!empty($audio->getLyrics())">
-                                    ${response.new_info.lyrics}
-                                </div>
-                            `)
+                            $(player.querySelector(".lyrics")).remove()
+                            player.querySelector(".title").classList.remove("withLyrics")
                         }
 
-                        e.currentTarget.setAttribute("data-lyrics", response.new_info.lyrics_unformatted)
-                        e.currentTarget.setAttribute("data-explicit", Number(response.new_info.explicit))
-                        e.currentTarget.setAttribute("data-searchable", Number(response.new_info.unlisted))
+                        e.target.setAttribute("data-lyrics", response.new_info.lyrics_unformatted)
+                        e.target.setAttribute("data-explicit", Number(response.new_info.explicit))
+
+                        if(Number(response.new_info.explicit) == 1) {
+                            if(!player.querySelector(".mediaInfo .explicitMark"))
+                                player.querySelector(".mediaInfo").insertAdjacentHTML("beforeend", `
+                                    <div class="explicitMark"></div>
+                                `)
+                        } else {
+                            $(player.querySelector(".mediaInfo .explicitMark")).remove()
+                        }
+
+                        e.target.setAttribute("data-searchable", Number(!response.new_info.unlisted))
                         player.setAttribute("data-genre", response.new_info.genre)
-                    } else {
-                        MessageBox(tr("error"), response.flash.message, [tr("ok")], [Function.noop])
-                    }
+
+                        let url = new URL(location.href)
+                        let page = "1"
+
+                        if(url.searchParams.p != null)
+                            page = String(url.searchParams.p)
+                        
+                        window.savedAudiosPages[page] = null
+                    } else
+                        fastError(response.flash.message)
                 }
             });
         },
@@ -683,6 +943,26 @@ $(document).on("click", ".musicIcon.edit-icon", (e) => {
         `)
     })
 
+    u(".ovk-diag-body #_fullyDeleteAudio").on("click", (e) => {
+        u("body").removeClass("dimmed");
+        document.querySelector("html").style.overflowY = "scroll"
+
+        u(".ovk-diag-cont").remove();
+
+        $.ajax({
+            type: "POST",
+            url: `/audio${id}/action?act=delete`,
+            data: {
+                hash: u("meta[name=csrf]").attr("value")
+            },
+            success: (response) => {
+                if(response.success)
+                    u(player).remove()
+                else
+                    fastError(response.flash.message)
+            }
+        });
+    })
 })
 
 $(document).on("click", ".title.withLyrics", (e) => {
@@ -693,10 +973,46 @@ $(document).on("click", ".title.withLyrics", (e) => {
 
 $(document).on("click", ".musicIcon.remove-icon", (e) => {
     let id = e.currentTarget.dataset.id
+
     let formdata = new FormData()
     formdata.append("hash", u("meta[name=csrf]").attr("value"))
 
     ky.post(`/audio${id}/action?act=remove`, {
+        hooks: {
+            beforeRequest: [
+                (_request) => {
+                    e.target.classList.add("lagged")
+                }
+            ],
+            afterResponse: [
+                async (_request, _options, response) => {
+                    let json = await response.json()
+
+                    if(json.success) {
+                        e.target.classList.remove("remove-icon")
+                        e.target.classList.add("add-icon")
+                        e.target.classList.remove("lagged")
+
+                        let withd = e.target.closest(".audioEmbed.withdrawn")
+
+                        if(withd != null)
+                            u(withd).remove()
+                    } else
+                        fastError(json.flash.message)
+                }
+            ]
+        }, body: formdata
+    })
+})
+
+$(document).on("click", ".musicIcon.remove-icon-group", (e) => {
+    let id = e.currentTarget.dataset.id
+
+    let formdata = new FormData()
+    formdata.append("hash", u("meta[name=csrf]").attr("value"))
+    formdata.append("club", e.currentTarget.dataset.club)
+
+    ky.post(`/audio${id}/action?act=remove_club`, {
         hooks: {
             beforeRequest: [
                 (_request) => {
@@ -707,21 +1023,65 @@ $(document).on("click", ".musicIcon.remove-icon", (e) => {
                 async (_request, _options, response) => {
                     let json = await response.json()
 
-                    if(json.success) {
-                        e.currentTarget.classList.remove("remove-icon")
-                        e.currentTarget.classList.add("add-icon")
-                        e.currentTarget.classList.remove("lagged")
-
-                        let withd = e.currentTarget.closest(".audioEmbed.withdrawn")
-                        if(withd != null) {
-                            u(withd).remove()
-                        }
-                    } else {
-                        MessageBox(tr("error"), json.flash.message, [tr("ok")], [Function.noop])
-                    }
+                    if(json.success)
+                        $(e.currentTarget.closest(".audioEmbed")).remove()
+                    else
+                        fastError(json.flash.message)
                 }
             ]
         }, body: formdata
+    })
+})
+
+$(document).on("click", ".musicIcon.add-icon-group", async (ev) => {
+    let body = `
+        ${tr("what_club_add")}
+        <div style="margin-top: 4px;">
+            <select id="addIconsWindow" style="width: 36%;"></select>
+            <input name="addButton" type="button" class="button" value="${tr("add")}">
+        </div>
+        <span class="errorPlace"></span>
+    `
+    MessageBox(tr("add_audio_to_club"), body, [tr("close")], [Function.noop])
+
+    document.querySelector(".ovk-diag-body").style.padding = "11px"
+
+    if(window.openvk.writeableClubs == null) {
+        try {
+            window.openvk.writeableClubs = await API.Groups.getWriteableClubs()
+        } catch (e) {
+            document.querySelector(".errorPlace").innerHTML = tr("no_access_clubs")
+            document.querySelector(".ovk-diag-body input[name='addButton']").classList.add("lagged")
+
+            return
+        }
+    }
+
+    window.openvk.writeableClubs.forEach(el => {
+        document.querySelector("#addIconsWindow").insertAdjacentHTML("beforeend", `
+            <option value="${el.id}">${ovk_proc_strtr(el.name, 20)}</option>
+        `)
+    })
+
+    $(".ovk-diag-body").on("click", "input[name='addButton']", (e) => {
+        $.ajax({
+            type: "POST",
+            url: `/audio${ev.target.dataset.id}/action?act=add_to_club`,
+            data: {
+                hash: u("meta[name=csrf]").attr("value"),
+                club: document.querySelector("#addIconsWindow").value
+            },
+            beforeSend: () => {
+                e.target.classList.add("lagged")
+                document.querySelector(".errorPlace").innerHTML = ""
+            },
+            success: (response) => {
+                if(!response.success)
+                    document.querySelector(".errorPlace").innerHTML = response.flash.message
+
+                e.currentTarget.classList.remove("lagged")
+            }
+        })
     })
 })
 
@@ -735,7 +1095,7 @@ $(document).on("click", ".musicIcon.add-icon", (e) => {
         hooks: {
             beforeRequest: [
                 (_request) => {
-                    e.currentTarget.classList.add("lagged")
+                    e.target.classList.add("lagged")
                 }
             ],
             afterResponse: [
@@ -743,15 +1103,36 @@ $(document).on("click", ".musicIcon.add-icon", (e) => {
                     let json = await response.json()
 
                     if(json.success) {
-                        e.currentTarget.classList.remove("add-icon")
-                        e.currentTarget.classList.add("remove-icon")
-                        e.currentTarget.classList.remove("lagged")
-                    } else {
-                        MessageBox(tr("error"), json.flash.message, [tr("ok")], [Function.noop])
-                    }
+                        e.target.classList.remove("add-icon")
+                        e.target.classList.add("remove-icon")
+                        e.target.classList.remove("lagged")
+                    } else
+                       fastError(json.flash.message)
                 }
             ]
         }, body: formdata
+    })
+})
+
+$(document).on("click", "#_deletePlaylist", (e) => {
+    let id = e.currentTarget.dataset.id
+
+    $.ajax({
+        type: "POST",
+        url: `/playlist${id}/action?act=delete`,
+        data: {
+            hash: u("meta[name=csrf]").attr("value"),
+        },
+        beforeSend: () => {
+            e.currentTarget.classList.add("lagged")
+        },
+        success: (response) => {
+            if(response.success) {
+                window.location.assign("/playlists" + response.id)
+            } else {
+                fastError(response.flash.message)
+            }
+        }
     })
 })
 
@@ -759,7 +1140,11 @@ $(document).on("click", "#_audioAttachment", (e) => {
     let form = e.currentTarget.closest("form")
     let body = `
         <div class="searchBox">
-            <input name="query" type="text" placeholder="${tr("header_search")}">
+            <input name="query" type="text" maxlength="50" placeholder="${tr("header_search")}">
+            <select name="perf">
+                <option value="by_name">${tr("by_name")}</option>
+                <option value="by_performer">${tr("by_performer")}</option>
+            </select>
         </div>
 
         <div class="audiosInsert"></div>
@@ -770,75 +1155,93 @@ $(document).on("click", "#_audioAttachment", (e) => {
     document.querySelector(".ovk-diag-cont").style.width = "580px"
     document.querySelector(".ovk-diag-body").style.height = "335px"
 
-    async function insertAudios(page, query = "") {
-        document.querySelector(".audiosInsert").insertAdjacentHTML("beforeend", `<img id="loader" src="/assets/packages/static/openvk/img/loading_mini.gif">`)
+    let searcher = new playersSearcher("entity_audios", 0)
+    searcher.successCallback = (response, thisc) => {
+        let domparser = new DOMParser()
+        let result = domparser.parseFromString(response, "text/html")
 
-        $.ajax({
-            type: "POST",
-            url: "/audios/context",
-            data: {
-                context: query == "" ? "entity_audios" : "search_context",
-                hash: u("meta[name=csrf]").attr("value"),
-                page: page,
-                query: query == "" ? null : query,
-                context_entity: 0,
-                returnPlayers: 1,
-            },
-            success: (response) => {
-                let domparser = new DOMParser()
-                let result = domparser.parseFromString(response, "text/html")
+        let pagesCount = result.querySelector("input[name='pagesCount']").value
+        let count = Number(result.querySelector("input[name='count']").value)
 
-                let pagesCount = result.querySelector("input[name='pagesCount']").value
-                let count = Number(result.querySelector("input[name='count']").value)
+        if(count < 1) {
+            document.querySelector(".audiosInsert").innerHTML = tr("no_results")
+            return
+        }
 
-                if(count < 1) {
-                    document.querySelector(".audiosInsert").innerHTML = tr("no_results")
-                    return
-                }
-
-                result.querySelectorAll(".audioEmbed").forEach(el => {
-                    let id = el.dataset.prettyid
-                    let name = el.dataset.name
-                    let isAttached = (form.querySelector("input[name='audios']").value.includes(`${id},`))
-                    document.querySelector(".audiosInsert").insertAdjacentHTML("beforeend", `
-                        <div style="display: table;width: 100%;clear: both;">
-                            <div style="width: 72%;float: left;">${el.outerHTML}</div>
-                            <div class="attachAudio" data-attachmentdata="${id}" data-name="${name}">
-                                <span>${isAttached ? tr("detach_audio") : tr("attach_audio")}</span>
-                            </div>
-                        </div>
-                    `)
-                })
-
-                u("#loader").remove()
-
-                if(page < pagesCount) {
-                    document.querySelector(".audiosInsert").insertAdjacentHTML("beforeend", `
-                    <div id="showMoreAudios" data-pagesCount="${pagesCount}" data-page="${page + 1}" style="width: 100%;text-align: center;background: #d5d5d5;height: 22px;padding-top: 9px;cursor:pointer;">
-                        <span>more...</span>
-                    </div>`)
-                }
-            }
+        result.querySelectorAll(".audioEmbed").forEach(el => {
+            let id = el.dataset.prettyid
+            let name = el.dataset.name
+            let isAttached = (form.querySelector("input[name='audios']").value.includes(`${id},`))
+            document.querySelector(".audiosInsert").insertAdjacentHTML("beforeend", `
+                <div style="display: table;width: 100%;clear: both;">
+                    <div style="width: 72%;float: left;">${el.outerHTML}</div>
+                    <div class="attachAudio" data-attachmentdata="${id}" data-name="${name}">
+                        <span>${isAttached ? tr("detach_audio") : tr("attach_audio")}</span>
+                    </div>
+                </div>
+            `)
         })
+
+        u("#loader").remove()
+
+        if(thisc.page < pagesCount) {
+            document.querySelector(".audiosInsert").insertAdjacentHTML("beforeend", `
+            <div id="showMoreAudios" data-pagesCount="${pagesCount}" data-page="${thisc.page + 1}" class="showMore">
+                <span>more...</span>
+            </div>`)
+        }
     }
 
-    insertAudios(1)
+    searcher.errorCallback = () => {
+        fastError("Error when loading players.")
+    }
+
+    searcher.beforesendCallback = () => {
+        document.querySelector(".audiosInsert").insertAdjacentHTML("beforeend", `<img id="loader" src="/assets/packages/static/openvk/img/loading_mini.gif">`)
+    }
+
+    searcher.clearContainer = () => {
+        document.querySelector(".audiosInsert").innerHTML = ""
+    }
+
+    searcher.movePage(1)
 
     $(".audiosInsert").on("click", "#showMoreAudios", (e) => {
         u(e.currentTarget).remove()
-        insertAudios(Number(e.currentTarget.dataset.page))
+        searcher.movePage(Number(e.currentTarget.dataset.page))
     })
 
     $(".searchBox input").on("change", async (e) => {
-        await new Promise(r => setTimeout(r, 1000));
+        await new Promise(r => setTimeout(r, 500));
 
         if(e.currentTarget.value === document.querySelector(".searchBox input").value) {
-            document.querySelector(".audiosInsert").innerHTML = ""
-            insertAudios(1, e.currentTarget.value)
+            searcher.clearContainer()
+
+            if(e.currentTarget.value == "") {
+                searcher.context_type = "entity_audios"
+                searcher.context_id = 0
+                searcher.query = ""
+
+                searcher.movePage(1)
+
+                return
+            }
+
+            searcher.context_type = "search_context"
+            searcher.context_id = 0
+            searcher.query = e.currentTarget.value
+
+            searcher.movePage(1)
             return;
-        } else {
-            console.info("skipping")
         }
+    })
+
+    $(".searchBox select").on("change", async (e) => {
+        searcher.clearContainer()
+        searcher.searchType = e.currentTarget.value
+
+        $(".searchBox input").trigger("change")
+        return;
     })
 
     function insertAttachment(id) {
@@ -852,12 +1255,10 @@ $(document).on("click", "#_audioAttachment", (e) => {
 
             form.querySelector("input[name='audios']").value += (id + ",")
 
-            console.info(id + " attached")
             return true
         } else {
             form.querySelector("input[name='audios']").value = form.querySelector("input[name='audios']").value.replace(id + ",", "")
 
-            console.info(id + " detached")
             return false
         }
     }
@@ -878,9 +1279,7 @@ $(document).on("click", "#_audioAttachment", (e) => {
             u(`#unattachAudio[data-id='${ev.currentTarget.dataset.attachmentdata}']`).on("click", (e) => {
                 let id = ev.currentTarget.dataset.attachmentdata
                 form.querySelector("input[name='audios']").value = form.querySelector("input[name='audios']").value.replace(id + ",", "")
-                
-                console.info(id + " detached")
-               
+
                 u(e.currentTarget).remove()
             })
         }
@@ -903,7 +1302,7 @@ $(document).on("click", ".musicIcon.report-icon", (e) => {
         
         res = document.querySelector("#uReportMsgInput").value;
         xhr = new XMLHttpRequest();
-        xhr.open("GET", "/report/" + e.currentTarget.dataset.id + "?reason=" + res + "&type=audio", true);
+        xhr.open("GET", "/report/" + e.target.dataset.id + "?reason=" + res + "&type=audio", true);
         xhr.onload = (function() {
         if(xhr.responseText.indexOf("reason") === -1)
             MessageBox(tr("error"), tr("error_sending_report"), ["OK"], [Function.noop]);
@@ -916,28 +1315,28 @@ $(document).on("click", ".musicIcon.report-icon", (e) => {
     Function.noop])
 })
 
-$(document).on("click", "#bookmarkPlaylist", (e) => {
-
-})
-
-$(document).on("click", "#unbookmarkPlaylist", (e) => {
-    
-})
-
-window.savedAudiosPages = {}
-
 $(document).on("click", ".audiosContainer .paginator a", (e) => {
     e.preventDefault()
-    e.currentTarget.parentNode.classList.add("lagged")
     let url = new URL(e.currentTarget.href)
-    let page = Number(url.searchParams.get("p"))
+    let page = url.searchParams.get("p")
+
+    function searchNode(id) {
+        let node = document.querySelector(`.audioEmbed[data-realid='${id}'] .audioEntry`)
+
+        if(node != null) {
+            node.classList.add("nowPlaying")
+        }
+    }
 
     if(window.savedAudiosPages[page] != null) {
         history.pushState({}, "", e.currentTarget.href)
         document.querySelector(".audiosContainer").innerHTML = window.savedAudiosPages[page].innerHTML
+        searchNode(window.player["tracks"].currentTrack != null ? window.player["tracks"].currentTrack.id : 0)
+
         return
     }
 
+    e.currentTarget.parentNode.classList.add("lagged")
     $.ajax({
         type: "GET",
         url: e.currentTarget.href,
@@ -948,8 +1347,9 @@ $(document).on("click", ".audiosContainer .paginator a", (e) => {
             document.querySelector(".audiosContainer").innerHTML = result.querySelector(".audiosContainer").innerHTML
             history.pushState({}, "", e.currentTarget.href)
             window.savedAudiosPages[page] = result.querySelector(".audiosContainer")
+            searchNode(window.player["tracks"].currentTrack != null ? window.player["tracks"].currentTrack.id : 0)
 
-            if(window.player.context["playedPages"].indexOf(page) == -1) {
+            if(!window.player.context["playedPages"].includes(page)) {
                 $.ajax({
                     type: "POST",
                     url: "/audios/context",
@@ -961,17 +1361,48 @@ $(document).on("click", ".audiosContainer .paginator a", (e) => {
                     },
                     success: (response_2) => {
                         window.player.tracks["tracks"] = window.player.tracks["tracks"].concat(response_2["items"])
-                        window.player.context["playedPages"].push(page)
+                        window.player.context["playedPages"].push(String(page))
                         console.info("Page is switched")
                     }
                 })
             }
         }
     })
+})
 
-    let node = document.querySelector(`.audioEmbed[data-realid='${window.player["tracks"].currentTrack != null ? window.player["tracks"].currentTrack.id : 0}'] .audioEntry`)
-                
-    if(node != null) {
-        node.classList.add("nowPlaying")
+$(document).on("click", ".addToPlaylist", (e) => {
+    let audios = document.querySelector("input[name='audios']") 
+    let id = e.currentTarget.dataset.id
+
+    if(!audios.value.includes(id + ",")) {
+        document.querySelector("input[name='audios']").value += (id + ",")
+        e.currentTarget.querySelector("span").innerHTML = tr("remove_from_playlist")
+    } else {
+        document.querySelector("input[name='audios']").value = document.querySelector("input[name='audios']").value.replace(id + ",", "")
+        e.currentTarget.querySelector("span").innerHTML = tr("add_to_playlist")
     }
+})
+
+$(document).on("click", "#bookmarkPlaylist, #unbookmarkPlaylist", (e) => {
+    let target = e.currentTarget
+    let id = target.id
+
+    $.ajax({
+        type: "POST",
+        url: `/playlist${e.currentTarget.dataset.id}/action?act=${id == "unbookmarkPlaylist" ? "unbookmark" : "bookmark"}`,
+        data: {
+            hash: u("meta[name=csrf]").attr("value"),
+        },
+        beforeSend: () => {
+            e.currentTarget.classList.add("lagged")
+        },
+        success: (response) => {
+            if(response.success) {
+                e.currentTarget.setAttribute("id", id == "unbookmarkPlaylist" ? "bookmarkPlaylist" : "unbookmarkPlaylist")
+                e.currentTarget.innerHTML = id == "unbookmarkPlaylist" ? tr("bookmark") : tr("unbookmark")
+                e.currentTarget.classList.remove("lagged")
+            } else
+                fastError(response.flash.message)
+        }
+    })
 })

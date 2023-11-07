@@ -5,6 +5,7 @@ use Nette\Database\Table\ActiveRow;
 use openvk\Web\Models\Repositories\Audios;
 use openvk\Web\Models\Repositories\Photos;
 use openvk\Web\Models\RowModel;
+use openvk\Web\Models\Entities\Photo;
 
 /**
  * @method setName(string $name)
@@ -125,6 +126,21 @@ class Playlist extends MediaCollection
 
         return $count > 0;
     }
+    
+    function getDescription(): ?string
+    {
+        return $this->getRecord()->description;
+    }
+
+    function getDescriptionHTML(): ?string
+    {
+        return htmlspecialchars($this->getRecord()->description, ENT_DISALLOWED | ENT_XHTML);
+    }
+
+    function getListens()
+    {
+        return $this->getRecord()->listens;
+    }
 
     function toVkApiStruct(?User $user = NULL): object
     {
@@ -139,17 +155,26 @@ class Playlist extends MediaCollection
             "description" => $this->getDescription(),
             "size"        => $this->size(),
             "length"      => $this->getLength(),
-            "created"     => $this->getCreationTime()->relative(),
-            "modified"    => $this->getCreationTime()->relative(),
+            "created"     => $this->getCreationTime()->timestamp(),
+            "modified"    => $this->getEditTime() ? $this->getEditTime()->timestamp() : NULL,
             "accessible"  => $this->canBeViewedBy($user),
             "editable"    => $this->canBeModifiedBy($user),
             "bookmarked"  => $this->isBookmarkedBy($user),
+            "listens"     => $this->getListens(),
+            "cover_url"   => $this->getCoverURL(),
         ];
     }
 
     function setLength(): void
     {
         throw new \LogicException("Can't set length of playlist manually");
+    }
+
+    function resetLength(): bool
+    {
+        $this->stateChanges("length", 0);
+
+        return true;
     }
 
     function delete(bool $softly = true): void
@@ -173,5 +198,59 @@ class Playlist extends MediaCollection
     function getCoverPhotoId(): ?int
     {
         return $this->getRecord()->cover_photo_id;
+    }
+
+    function canBeModifiedBy(User $user): bool
+    {
+        if(!$user)
+            return false;
+
+        if($this->getOwner() instanceof User)
+            return $user->getId() == $this->getOwner()->getId();
+        else
+            return $this->getOwner()->canBeModifiedBy($user);
+    }
+
+    function getLengthInMinutes(): int
+    {
+        return (int)round($this->getLength() / 60, PHP_ROUND_HALF_DOWN);
+    }
+
+    function fastMakeCover(int $owner, array $file)
+    {
+        $cover = new Photo;
+        $cover->setOwner($owner);
+        $cover->setDescription("Playlist cover image");
+        $cover->setFile($file);
+        $cover->setCreated(time());
+        $cover->save();
+
+        $this->setCover_photo_id($cover->getId());
+
+        return $cover;
+    }
+
+    function getURL(): string
+    {
+        return "/playlist" . $this->getOwner()->getRealId() . "_" . $this->getId();
+    }
+
+    function incrementListens()
+    {
+        $this->stateChanges("listens", ($this->getListens() + 1));
+    }
+
+    function getMetaDescription(): string
+    {
+        $length = $this->getLengthInMinutes();
+
+        $props = [];
+        $props[] = tr("audios_count", $this->size());
+        $props[] = "<span id='listensCount'>" . tr("listens_count", $this->getListens()) . "</span>";
+        if($length > 0) $props[] = tr("minutes_count", $length);
+        $props[] = tr("created_playlist") . " " . $this->getPublicationTime();
+        # if($this->getEditTime()) $props[] = tr("updated_playlist") . " " . $this->getEditTime();
+        
+        return implode(" • ", $props);
     }
 }

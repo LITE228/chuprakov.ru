@@ -796,8 +796,8 @@ class User extends RowModel
 
         for($i = 0; $i < 10 - $this->get2faBackupCodeCount(); $i++) {
             $codes[] = [
-                owner => $this->getId(),
-                code => random_int(10000000, 99999999)
+                "owner" => $this->getId(),
+                "code" => random_int(10000000, 99999999)
             ];
         }
 
@@ -1373,7 +1373,45 @@ class User extends RowModel
     {
         return sizeof(DatabaseConnection::i()->getContext()->table("ignored_sources")->where("ignored_source", $this->getId()));
     }
+
+    function getAudiosCollectionSize()
+    {
+        return (new \openvk\Web\Models\Repositories\Audios)->getUserCollectionSize($this);
+    }
+
+    function getBroadcastList(string $filter = "friends", bool $shuffle = false)
+    {
+        $dbContext = DatabaseConnection::i()->getContext();
+        $entityIds = [];
+        $query     = $dbContext->table("subscriptions")->where("follower", $this->getRealId());
+
+        if($filter != "all")
+            $query = $query->where("model = ?", "openvk\\Web\\Models\\Entities\\" . ($filter == "groups" ? "Club" : "User"));
+
+        foreach($query as $_rel) {
+            $entityIds[] = $_rel->model == "openvk\\Web\\Models\\Entities\\Club" ? $_rel->target * -1 : $_rel->target;
+        }
+
+        if($shuffle) {
+            $shuffleSeed    = openssl_random_pseudo_bytes(6);
+            $shuffleSeed    = hexdec(bin2hex($shuffleSeed));
+    
+            $entityIds = knuth_shuffle($entityIds, $shuffleSeed);
+        }
+
+        $returnArr = [];
+        
+        foreach($entityIds as $id) {
+            $entit = $id > 0 ? (new Users)->get($id) : (new Clubs)->get(abs($id));
+
+            if($id > 0 && $entit->isDeleted()) return;
+            $returnArr[] = $entit;
+        }
+
+        return $returnArr;
+    }
     
 	use Traits\TBackDrops;
     use Traits\TSubscribable;
+    use Traits\TAudioStatuses;
 }

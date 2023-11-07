@@ -120,14 +120,14 @@ class Audio extends Media
                 Shell::powershell("-executionpolicy bypass", "-File", __DIR__ . "/../shell/processAudio.ps1", ...$args)
                 ->start();
             } else {
-                exit("Linux uploads are not implemented");
+                throw new \BadMethodCallException("Linux uploads are not implemented");
             }
 
             # Wait until processAudio will consume the file
             $start = time();
             while(file_exists($filename))
                 if(time() - $start > 5)
-                    exit("Timed out waiting for ffmpeg"); // TODO replace with exception
+                    throw new \RuntimeException("Timed out waiting FFMPEG");
 
          } catch(UnknownCommandException $ucex) {
              exit(OPENVK_ROOT_CONF["openvk"]["debug"] ? "bash/pwsh is not installed" : VIDEOS_FRIENDLY_ERROR);
@@ -148,7 +148,7 @@ class Audio extends Media
 
     function getName(): string
     {
-        return $this->getTitle() . " - " . $this->getPerformer();
+        return $this->getPerformer() . " — " . $this->getTitle();
     }
 
     function getGenre(): ?string
@@ -303,29 +303,34 @@ class Audio extends Media
         return true;
     }
 
-    function listen($entity): bool
+    function listen($entity, Playlist $playlist = NULL): bool
     {
-        $entityId = $entity->getId();
-        if($entity instanceof Club)
-            $entityId *= -1;
-
         $listensTable = DatabaseConnection::i()->getContext()->table("audio_listens");
         $lastListen   = $listensTable->where([
-            "entity" => $entityId,
+            "entity" => $entity->getRealId(),
             "audio"  => $this->getId(),
-        ])->fetch();
-
+        ])->order("index DESC")->fetch();
+        
         if(!$lastListen || (time() - $lastListen->time >= $this->getLength())) {
             $listensTable->insert([
-                "entity" => $entityId,
+                "entity" => $entity->getRealId(),
                 "audio"  => $this->getId(),
                 "time"   => time(),
+                "playlist" => $playlist ? $playlist->getId() : NULL,
             ]);
 
             if($entity instanceof User) {
                 $this->stateChanges("listens", ($this->getListens() + 1));
                 $this->save();
+
+                if($playlist) {
+                    $playlist->incrementListens();
+                    $playlist->save();
+                }
             }
+
+            $entity->setLast_played_track($this->getId());
+            $entity->save();
 
             return true;
         }
@@ -336,34 +341,7 @@ class Audio extends Media
 
         return false;
     }
-
-    /**
-     * Returns compatible with VK API 4.x, 5.x structure.
-     *
-     * Always sets album(_id) to NULL at this time.
-     * If genre is not present in VK genre list, fallbacks to "Other".
-     * The url and manifest properties will be set to false if the audio can't be played (processing, removed).
-     *
-     * Aside from standard VK properties, this method will also return some OVK extended props:
-     * 1. added - Is in the library of $user?
-     * 2. editable - Can be edited by $user?
-     * 3. withdrawn - Removed due to copyright request?
-     * 4. ready - Can be played at this time?
-     * 5. genre_str - Full name of genre, NULL if it's undefined
-     * 6. manifest - URL to MPEG-DASH manifest
-     * 7. keys - ClearKey DRM keys
-     * 8. explicit - Marked as NSFW?
-     * 9. searchable - Can be found via search?
-     * 10. unique_id - Unique ID of audio
-     *
-     * @notice that in case if exposeOriginalURLs is set to false in config, "url" will always contain link to nomusic.mp3,
-     * unless $forceURLExposure is set to true.
-     *
-     * @notice may trigger db flush if the audio is not processed yet, use with caution on unsaved models.
-     *
-     * @param ?User $user user, relative to whom "added", "editable" will be set
-     * @param bool $forceURLExposure force set "url" regardless of config
-     */
+    
     function toVkApiStruct(?User $user = NULL, bool $forceURLExposure = false): object
     {
         $obj = (object) [];

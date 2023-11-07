@@ -174,7 +174,7 @@ abstract class MediaCollection extends RowModel
         return !is_null($rel);
     }
     
-	function save(): void
+	function save(?bool $log = false): void
     {
         $thisTable = DatabaseConnection::i()->getContext()->table($this->tableName);
         if(self::MAX_COUNT != INF)

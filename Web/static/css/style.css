@@ -1426,7 +1426,7 @@ body.scrolled .toTop:hover {
     display: none;
 }
 
-.post-has-videos {
+.post-has-videos, .post-has-audio {
     margin-top: 11px;
     margin-left: 3px;
     color: #3c3c3c;
@@ -1443,12 +1443,16 @@ body.scrolled .toTop:hover {
     margin-left: 2px;
 }
 
-.post-has-video {
+.post-has-video, .post-has-audio {
     padding-bottom: 4px;
     cursor: pointer;
 }
 
 .post-has-video:hover span {
+    text-decoration: underline;
+}
+
+.post-has-audio:hover span {
     text-decoration: underline;
 }
 
@@ -1464,6 +1468,19 @@ body.scrolled .toTop:hover {
     margin-left: 2px;
     margin-bottom: -1px;
 }
+
+.post-has-audio::before {
+    content: " ";
+    width: 14px;
+    height: 15px;
+    display: inline-block;
+    vertical-align: bottom;
+    background-image: url("/assets/packages/static/openvk/img/audio.png");
+    background-repeat: no-repeat;
+    margin: 3px;
+    margin-left: 2px;
+    margin-bottom: -1px;
+}    
 
 .topGrayBlock {
     background: #F0F0F0;
@@ -2112,7 +2129,7 @@ table td[width="120"] {
     color: #4D6A8C;
 }
 
-.time {
+.time .messenger-app--messages---message {
     margin-top: 10px;
     padding: 7px;
     background-color: #f6f6f6;
@@ -2198,8 +2215,8 @@ table td[width="120"] {
     padding:2px;
     padding-top:5px;
     padding-bottom:5px;
-    border: solid 0.125rem #696969;
-    background:linear-gradient(#888888,#858585);
+    border: solid 0.125rem #4F4F4F;
+    background: #606060;
     margin-bottom:2px;
     padding-left:5px;
     width:90%;
@@ -2211,7 +2228,7 @@ table td[width="120"] {
 .searchList li, .searchList a
 {
     display: block;
-    margin-left:0px;
+    margin-left: 0px;
     color: #2B587A !important;
     cursor:pointer;
     padding:2px;
@@ -2230,7 +2247,7 @@ table td[width="120"] {
     padding-bottom:6px;
     margin-bottom:2px;
     padding-left:5px;
-    width:91%;
+    width:89%;
 }
 .whatFind 
 {
@@ -2314,6 +2331,25 @@ table td[width="120"] {
     height: unset !important;
     border-left: 1px solid #d8d8d8;
     width: 26% !important;
+}
+
+hr {
+    color: #d0cdcd;
+}
+
+.searchList hr {
+    width: 153px;
+    margin-left: 0px;
+    margin-top: 6px;
+}
+
+.showMore, .showMoreAudiosPlaylist {
+    width: 100%;
+    text-align: center;
+    background: #d5d5d5;
+    height: 22px;
+    padding-top: 9px;
+    cursor: pointer;
 }
 
 .borderup
@@ -2901,6 +2937,15 @@ a.poll-retract-vote {
     animation-timing-function: linear;
 }
 
+#upload_container.uploading {
+    background: white url('/assets/packages/static/openvk/img/progressbar.gif') !important;
+    background-position-x: 0% !important;
+    background-position-y: 0% !important;
+    background-repeat: repeat !important;
+    background-repeat: no-repeat !important;
+    background-position: 50% !important;
+}
+
 @keyframes progress {
     from {
         background-position: 0;
@@ -3087,7 +3132,7 @@ a.poll-retract-vote {
     position: relative;
     z-index: 999;
     background: #fff;
-    width: 610px;
+    width: 805px;
     padding: 20px;
     padding-top: 15px;
     padding-bottom: 10px;
@@ -3192,6 +3237,7 @@ a.poll-retract-vote {
     to {
         opacity: 1;
     }
+}
 
 #app_news_container {
     margin-bottom: 30px;

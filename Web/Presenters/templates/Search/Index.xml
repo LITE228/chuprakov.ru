@@ -145,6 +145,8 @@
     }
     </style>
     <div style="margin-top:-7px">
+    {var $data = is_array($iterator) ? $iterator : iterator_to_array($iterator)}
+
     {if isset($thisUser) && $thisUser->getPaginatorType() == 0}
             {include "../components/paginator.xml", conf => (object) [
                 "page"     => $page,
@@ -160,7 +162,6 @@
     </p>
     <div style="display: flex;flex-direction: row;">
 
-    {var $data = is_array($iterator) ? $iterator : iterator_to_array($iterator)}
     <div class="container_gray borderup infContainer" style="float:left;width:70%;">
         {if sizeof($data) > 0}
             {if $type == "users" || $type == "groups" || $type == "apps"}
@@ -383,7 +384,7 @@
         <div class="searchOption">
         <div class="searchOptionName" id="n_main_audio" onclick="hideParams('main_audio')"><img src="/assets/packages/static/openvk/img/hide.png" class="searchHide">{_s_main}</div>
             <div class="searchOptionBlock" id="s_main_audio">
-                <label><input type="checkbox" name="only_performers" n:attr="checked => !empty($_GET['only_performers'])" form="searcher">{_s_only_performers}</label>
+                <label><input type="checkbox" name="only_performers" n:attr="checked => !empty($_GET['only_performers'])" form="searcher">{_s_only_performers}</label><br>
                 <label><input type="checkbox" name="with_lyrics" n:attr="checked => !empty($_GET['with_lyrics'])" form="searcher">{_s_with_lyrics}</label>
             </div>
         </div>

@@ -132,7 +132,7 @@ abstract class Media extends Postable
         $this->stateChanges("hash", $hash);
     }
 
-    function save(): void
+    function save(?bool $log = false): void
     {
         if(!is_null($this->processingPlaceholder) && is_null($this->getRecord())) {
             $this->stateChanges("processed", 0);

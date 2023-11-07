@@ -72,7 +72,6 @@
                 </label>
             </div>
             <input type="hidden" name="photos" value="" />
-            <input type="file" class="postFileSel" id="postFileVid" name="_vid_attachment" accept="video/*" style="display:none;" onchange="handleVideoTAreaUpdate(event, {$textAreaId})" />
             <input type="hidden" name="videos" value="" />
             <input type="hidden" name="audios" value="" />
 			<input type="hidden" name="poll" value="none" />

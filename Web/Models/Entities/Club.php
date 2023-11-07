@@ -418,37 +418,42 @@ class Club extends RowModel
     {
         return $this->getRecord()->alert;
     }
+
+    function getAudiosCollectionSize()
+    {
+        return (new \openvk\Web\Models\Repositories\Audios)->getClubCollectionSize($this);
+    }
 	
 	function toVkApiStruct(?User $user = NULL): object
     {
-        $res = [];
+        $res = (object)[];
 
         $res->id          = $this->getId();
         $res->name        = $this->getName();
         $res->screen_name = $this->getShortCode();
         $res->is_closed   = 0;
         $res->deactivated = NULL;
-        $res->is_admin    = $this->canBeModifiedBy($user);
+        $res->is_admin    = $user && $this->canBeModifiedBy($user);
 
-        if($this->canBeModifiedBy($user)) {
+        if($user && $this->canBeModifiedBy($user)) {
             $res->admin_level = 3;
         }
 
-        $res->is_member  = $this->getSubscriptionStatus($user) ? 1 : 0;
+        $res->is_member  = $user && $this->getSubscriptionStatus($user) ? 1 : 0;
 
         $res->type       = "group";
         $res->photo_50   = $this->getAvatarUrl("miniscule");
         $res->photo_100  = $this->getAvatarUrl("tiny");
         $res->photo_200  = $this->getAvatarUrl("normal");
 
-        $res->can_create_topic = $this->canBeModifiedBy($user) ? 1 : ($this->isEveryoneCanCreateTopics() ? 1 : 0);
+        $res->can_create_topic = $user && $this->canBeModifiedBy($user) ? 1 : ($this->isEveryoneCanCreateTopics() ? 1 : 0);
 
-        $res->can_post         = $this->canBeModifiedBy($user) ? 1 : ($this->canPost() ? 1 : 0);
+        $res->can_post         = $user && $this->canBeModifiedBy($user) ? 1 : ($this->canPost() ? 1 : 0);
 
         $res->is_deleted = (int)$this->isDeleted();
         $res->is_banned  = (int)$this->isBanned();
 
-        return (object) $res;
+        return $res;
     }
 
     function isIgnoredBy(User $user): bool
@@ -468,11 +473,25 @@ class Club extends RowModel
         return true;
     }
 
-    function getRealId()
+    function getRealId(): int
     {
         return $this->getId() * -1;
+    }
+
+    function isEveryoneCanUploadAudios(): bool
+    {
+        return (bool) $this->getRecord()->everyone_can_upload_audios;
+    }
+
+    function canUploadAudio(?User $user): bool
+    {
+        if(!$user)
+            return NULL;
+
+        return $this->isEveryoneCanUploadAudios() || $this->canBeModifiedBy($user);
     }
     
 	use Traits\TBackDrops;
     use Traits\TSubscribable;
+    use Traits\TAudioStatuses;
 }
