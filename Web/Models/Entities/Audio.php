@@ -120,7 +120,7 @@ class Audio extends Media
                 Shell::powershell("-executionpolicy bypass", "-File", __DIR__ . "/../shell/processAudio.ps1", ...$args)
                 ->start();
             } else {
-                throw new \BadMethodCallException("Linux uploads are not implemented");
+                Shell::bash(__DIR__ . "/../shell/processAudio.sh", ...$args)->start();
             }
 
             # Wait until processAudio will consume the file

@@ -426,7 +426,7 @@ class Club extends RowModel
 	
 	function toVkApiStruct(?User $user = NULL): object
     {
-        $res = (object)[];
+        $res = (object) [];
 
         $res->id          = $this->getId();
         $res->name        = $this->getName();

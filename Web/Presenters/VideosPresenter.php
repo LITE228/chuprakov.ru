@@ -23,7 +23,7 @@ final class VideosPresenter extends OpenVKPresenter
     {
         $user = $this->users->get($id);
         if(!$user) $this->notFound();
-        if(!$user->getPrivacyPermission('videos.read', $this->user->identity ?? NULL) || !$user->canBeViewedBy($this->user->identity))
+        if(!$user->getPrivacyPermission('videos.read', $this->user->identity ?? NULL))
             $this->flashFail("err", tr("forbidden"), tr("forbidden_comment"));
         
         $this->template->user   = $user;
@@ -152,6 +152,6 @@ final class VideosPresenter extends OpenVKPresenter
             $video->toggleLike($this->user->identity);
         }
 
-        $this->redirect("$_SERVER[HTTP_REFERER]");
+        $this->returnJson(["success" => true]);
     }
 }

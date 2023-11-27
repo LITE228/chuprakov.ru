@@ -304,15 +304,15 @@ final class AudioPresenter extends OpenVKPresenter
         if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $title = $this->postParam("title");
             $description = $this->postParam("description");
-            $audios = !empty($this->postParam("audios")) ? array_slice(explode(",", $this->postParam("audios")), 0, 100) : [];
+            $audios = !empty($this->postParam("audios")) ? array_slice(explode(",", $this->postParam("audios")), 0, 1000) : [];
 
             if(empty($title) || iconv_strlen($title) < 1)
                 $this->flashFail("err", tr("error"), tr("set_playlist_name"));
 
             $playlist = new Playlist;
             $playlist->setOwner($owner);
-            $playlist->setName(substr($title, 0, 128));
-            $playlist->setDescription(substr($description, 0, 2048));
+            $playlist->setName(substr($title, 0, 125));
+            $playlist->setDescription(substr($description, 0, 2045));
 
             if($_FILES["cover"]["error"] === UPLOAD_ERR_OK) {
                 if(!str_starts_with($_FILES["cover"]["type"], "image"))
@@ -432,8 +432,8 @@ final class AudioPresenter extends OpenVKPresenter
         if(empty($title) || iconv_strlen($title) < 1)
             $this->flashFail("err", tr("error"), tr("set_playlist_name"));
         
-        $playlist->setName(ovk_proc_strtr($title, 128));
-        $playlist->setDescription(ovk_proc_strtr($description, 2048));
+        $playlist->setName(ovk_proc_strtr($title, 125));
+        $playlist->setDescription(ovk_proc_strtr($description, 2045));
         $playlist->setEdited(time());
         $playlist->resetLength();
 
@@ -478,9 +478,9 @@ final class AudioPresenter extends OpenVKPresenter
         $this->template->audios = iterator_to_array($playlist->fetch($page, 10));
         $this->template->ownerId = $owner_id;
         $this->template->owner = $playlist->getOwner();
-        $this->template->isBookmarked = $playlist->isBookmarkedBy($this->user->identity);
-        $this->template->isMy = $playlist->getOwner()->getId() === $this->user->id;
-        $this->template->canEdit = $playlist->canBeModifiedBy($this->user->identity);
+        $this->template->isBookmarked = $this->user->identity && $playlist->isBookmarkedBy($this->user->identity);
+        $this->template->isMy = $this->user->identity &&  $playlist->getOwner()->getId() === $this->user->id;
+        $this->template->canEdit = $this->user->identity &&  $playlist->canBeModifiedBy($this->user->identity);
     }
 
     function renderAction(int $audio_id): void

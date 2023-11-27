@@ -547,6 +547,9 @@ class User extends RowModel
             return $permStatus === User::PRIVACY_EVERYONE;
         else if($user->getId() === $this->getId())
             return true;
+        
+        if($permission != "messages.write" && !$this->canBeViewedBy($user))
+            return false;
 
         switch($permStatus) {
             case User::PRIVACY_ONLY_FRIENDS:
@@ -1399,12 +1402,14 @@ class User extends RowModel
             $entityIds = knuth_shuffle($entityIds, $shuffleSeed);
         }
 
+        $entityIds = array_slice($entityIds, 0, 10);
+
         $returnArr = [];
         
         foreach($entityIds as $id) {
             $entit = $id > 0 ? (new Users)->get($id) : (new Clubs)->get(abs($id));
 
-            if($id > 0 && $entit->isDeleted()) return;
+            if($id > 0 && $entit->isDeleted()) continue;
             $returnArr[] = $entit;
         }
 

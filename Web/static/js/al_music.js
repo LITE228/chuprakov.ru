@@ -12,6 +12,8 @@ function fastError(message) {
 function getElapsedTime(fullTime, time) {
     let timer = fullTime - time
 
+    if(timer < 0) return "-00:00"
+
     return "-" + fmtTime(timer)
 }
 
@@ -135,11 +137,12 @@ class bigPlayer {
                             this.pause()
                         }
 
-                        console.info("Context is successfully loaded")
+                        console.info("Музыкальное содержимое загружено")
                     }
                 ]
             }, 
-            body: formdata
+            body: formdata,
+            timeout: 20000,
         })
 
         u(this.nodes["playButtons"].querySelector(".playButton")).on("click", (e) => {
@@ -346,7 +349,7 @@ class bigPlayer {
         })
 
         u(document).on("keyup", (e) => {
-            if([87, 65, 83, 68, 82].includes(e.keyCode)) {
+            if([87, 65, 83, 68, 82, 77].includes(e.keyCode)) {
                 if(document.querySelector(".ovk-diag-cont") != null)
                     return
 
@@ -364,6 +367,9 @@ class bigPlayer {
                     break
                 case 82:
                     document.querySelector(".bigPlayer .additionalButtons .repeatButton").click()
+                    break
+                case 77:
+                    document.querySelector(".bigPlayer .additionalButtons .deviceButton").click()
                     break
             }
         })
@@ -416,12 +422,12 @@ class bigPlayer {
                     },
                     success: (response) => {
                         if(response.success) {
-                            console.info("Listen is counted.")
+                            console.info("прослушечка засчитана.")
         
                             if(response.new_playlists_listens)
                                 document.querySelector("#listensCount").innerHTML = tr("listens_count", response.new_playlists_listens)
                         } else
-                            console.info("Listen is not counted.")
+                            console.info("прослушечка не засчитана.")
                     }
                 })
             }, 2000)
@@ -578,7 +584,7 @@ class bigPlayer {
                                 this.tracks["nextTrack"] = this.tracks["tracks"].at(indexOfCurrentTrack + 1) != null ? this.tracks["tracks"].at(indexOfCurrentTrack + 1).id : null
                             
                             this.updateButtons()
-                            console.info("Context is successfully loaded")
+                            console.info("Музыкальное содержимое обновлено")
                         }
                     ]
                 }, 
@@ -618,7 +624,7 @@ class bigPlayer {
         navigator.mediaSession.metadata = new MediaMetadata({
             title: obj.name,
             artist: obj.performer,
-            album: album == null ? "OpenVK Audios" : album.querySelector(".playlistInfo h4").innerHTML,
+            album: album == null ? "VepurOVK Музыка" : album.querySelector(".playlistInfo h4").innerHTML,
             artwork: [{ src: album == null ? "/assets/packages/static/openvk/img/song.jpg" : album.querySelector(".playlistCover img").src }],
         });
 
@@ -645,10 +651,10 @@ document.addEventListener("DOMContentLoaded", function() {
             entries.forEach(x => {
                 if(x.isIntersecting) {
                     document.querySelector('.bigPlayer').classList.remove("floating")
-                    document.querySelector('.searchOptions .searchList').classList.remove("floating")
+                    //document.querySelector('.searchOptions .searchList').classList.remove("floating")
                     document.querySelector('.bigPlayerDetector').style.marginTop = "0px"
                 } else {
-                    document.querySelector('.searchOptions .searchList').classList.add("floating")
+                    //document.querySelector('.searchOptions .searchList').classList.add("floating")
                     document.querySelector('.bigPlayer').classList.add("floating")
                     document.querySelector('.bigPlayerDetector').style.marginTop = "46px"
                 }
@@ -661,7 +667,21 @@ document.addEventListener("DOMContentLoaded", function() {
 
         if(bigplayer != null)
             bigPlayerObserver.observe(bigplayer);
-}})
+    }
+
+    $(document).on("mouseover mouseleave", `.audioEntry .mediaInfo`, (e) => {
+        const info = e.currentTarget.closest(".mediaInfo")
+        const overfl = info.querySelector(".info")
+
+        if(e.originalEvent.type == "mouseleave" || e.originalEvent.type == "mouseout") {
+            info.classList.add("noOverflow")
+            info.classList.remove("overflowedName")
+        } else {
+            info.classList.remove("noOverflow")
+            info.classList.add("overflowedName")
+        }
+    })
+})
 
 $(document).on("click", ".audioEmbed > *", (e) => {
     const player = e.currentTarget.closest(".audioEmbed")
@@ -827,15 +847,15 @@ $(document).on("click", ".musicIcon.edit-icon", (e) => {
     let genre = player.dataset.genre
     let lyrics = e.currentTarget.dataset.lyrics
     
-    MessageBox(tr("edit"), `
+    MessageBox(tr("edit_audio"), `
         <div>
             ${tr("performer")}
-            <input name="performer" maxlength="40" type="text" value="${performer}">
+            <input name="performer" maxlength="256" type="text" value="${performer}">
         </div>
 
         <div style="margin-top: 11px">
             ${tr("audio_name")}
-            <input name="name" maxlength="40" type="text" value="${name}">
+            <input name="name" maxlength="256" type="text" value="${name}">
         </div>
 
         <div style="margin-top: 11px">
@@ -854,7 +874,7 @@ $(document).on("click", ".musicIcon.edit-icon", (e) => {
             <hr>
             <a id="_fullyDeleteAudio">${tr("fully_delete_audio")}</a>
         </div>
-    `, [tr("ok"), tr("cancel")], [
+    `, [tr("save"), tr("cancel")], [
         function() {
             let t_name   = $(".ovk-diag-body input[name=name]").val();
             let t_perf   = $(".ovk-diag-body input[name=performer]").val();
@@ -894,7 +914,7 @@ $(document).on("click", ".musicIcon.edit-icon", (e) => {
                                 player.querySelector(".title").classList.add("withLyrics")
                             } else {
                                 player.insertAdjacentHTML("beforeend", `
-                                    <div class="lyrics" n:if="!empty($audio->getLyrics())">
+                                    <div class="lyrics">
                                         ${response.new_info.lyrics}
                                     </div>
                                 `)
@@ -972,6 +992,8 @@ $(document).on("click", ".title.withLyrics", (e) => {
 })
 
 $(document).on("click", ".musicIcon.remove-icon", (e) => {
+    e.stopImmediatePropagation()
+
     let id = e.currentTarget.dataset.id
 
     let formdata = new FormData()
@@ -1006,6 +1028,8 @@ $(document).on("click", ".musicIcon.remove-icon", (e) => {
 })
 
 $(document).on("click", ".musicIcon.remove-icon-group", (e) => {
+    e.stopImmediatePropagation()
+    
     let id = e.currentTarget.dataset.id
 
     let formdata = new FormData()
@@ -1037,7 +1061,7 @@ $(document).on("click", ".musicIcon.add-icon-group", async (ev) => {
     let body = `
         ${tr("what_club_add")}
         <div style="margin-top: 4px;">
-            <select id="addIconsWindow" style="width: 36%;"></select>
+            <select id="addIconsWindow" style="width: 59%;"></select>
             <input name="addButton" type="button" class="button" value="${tr("add")}">
         </div>
         <span class="errorPlace"></span>
@@ -1117,23 +1141,25 @@ $(document).on("click", ".musicIcon.add-icon", (e) => {
 $(document).on("click", "#_deletePlaylist", (e) => {
     let id = e.currentTarget.dataset.id
 
-    $.ajax({
-        type: "POST",
-        url: `/playlist${id}/action?act=delete`,
-        data: {
-            hash: u("meta[name=csrf]").attr("value"),
-        },
-        beforeSend: () => {
-            e.currentTarget.classList.add("lagged")
-        },
-        success: (response) => {
-            if(response.success) {
-                window.location.assign("/playlists" + response.id)
-            } else {
-                fastError(response.flash.message)
+    MessageBox(tr("warning"), tr("sure_delete_playlist"), [tr("yes"), tr("no")], [() => {
+        $.ajax({
+            type: "POST",
+            url: `/playlist${id}/action?act=delete`,
+            data: {
+                hash: u("meta[name=csrf]").attr("value"),
+            },
+            beforeSend: () => {
+                e.currentTarget.classList.add("lagged")
+            },
+            success: (response) => {
+                if(response.success) {
+                    window.location.assign("/playlists" + response.id)
+                } else {
+                    fastError(response.flash.message)
+                }
             }
-        }
-    })
+        })
+    }, Function.noop])
 })
 
 $(document).on("click", "#_audioAttachment", (e) => {
@@ -1164,7 +1190,7 @@ $(document).on("click", "#_audioAttachment", (e) => {
         let count = Number(result.querySelector("input[name='count']").value)
 
         if(count < 1) {
-            document.querySelector(".audiosInsert").innerHTML = tr("no_results")
+            document.querySelector(".audiosInsert").innerHTML = thisc.context_type == "entity_audios" ? tr("no_audios_thisuser") : tr("no_results")
             return
         }
 
@@ -1187,7 +1213,7 @@ $(document).on("click", "#_audioAttachment", (e) => {
         if(thisc.page < pagesCount) {
             document.querySelector(".audiosInsert").insertAdjacentHTML("beforeend", `
             <div id="showMoreAudios" data-pagesCount="${pagesCount}" data-page="${thisc.page + 1}" class="showMore">
-                <span>more...</span>
+                <span>${tr("show_more_audios")}</span>
             </div>`)
         }
     }

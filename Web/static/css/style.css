@@ -1696,8 +1696,8 @@ body.scrolled .toTop:hover {
     border: 1px solid darkgrey;
     background-color: white;
     z-index: 32;
-	margin-top: -7px;
-    margin-left: -16px;
+    margin-top: -7px;
+    margin-left: -32px;
     box-shadow: 0 1px 3px -1px;
 }
 
@@ -2334,7 +2334,9 @@ table td[width="120"] {
 }
 
 hr {
-    color: #d0cdcd;
+    background-color: #d8d8d8;
+    border: none;
+    height: 1px;
 }
 
 .searchList hr {

@@ -2,13 +2,21 @@
 
 {block title}
     {if $mode == 'list'}
-        {_audios}
+        {if $ownerId > 0}
+            {_audios}
+        {else}
+            {_audios_group}
+        {/if}
     {elseif $mode == 'new'}
         {_audio_new}
     {elseif $mode == 'popular'}
         {_audio_popular}
     {else}
-        {_playlists}
+        {if $ownerId > 0}
+            {_playlists}
+        {else}
+            {_playlists_group}
+        {/if}
     {/if}
 {/block}
 
@@ -85,19 +93,20 @@
                     <div class="infObj" n:foreach="$playlists as $playlist">
                         <a href="/playlist{$playlist->getPrettyId()}">
                             <div class="playlistCover">
-                                <img src="{$playlist->getCoverURL()}">
-                            </div>
-
-                            <div class="playlistInfo">
-                                <span style="font-size: 12px" class="playlistName">
-                                    {ovk_proc_strtr($playlist->getName(), 12)}
-                                </span>
-
-                                <span style="font-size: 12px" class="playlistAuthor">
-                                    <a href="{$playlist->getOwner()->getURL()}">{ovk_proc_strtr($playlist->getOwner()->getCanonicalName(), 20)}</a>
-                                </span>
+                                <img src="{$playlist->getCoverURL()}" alt="{_playlist_cover}">
                             </div>
                         </a>
+
+
+                        <div class="playlistInfo">
+                            <a href="/playlist{$playlist->getPrettyId()}">
+                                <span style="font-size: 12px" class="playlistName">
+                                    {ovk_proc_strtr($playlist->getName(), 15)}
+                                </span>
+                            </a>
+
+                            <a href="{$playlist->getOwner()->getURL()}">{ovk_proc_strtr($playlist->getOwner()->getCanonicalName(), 20)}</a>
+                        </div>
                     </div>
                 </div>
 
