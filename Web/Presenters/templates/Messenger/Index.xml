@@ -20,7 +20,7 @@
                 
                 <div class="crp-entry--image">
                     <img src="{$recipient->getAvatarURL('miniscule')}"
-                    alt="Фотография пользователя" />
+                    alt="Фотография пользователя" loading=lazy />
                 </div>
                 <div class="crp-entry--info">
                     <a href="{$recipient->getURL()}" n:attr="style => $recipient->isServiceAccount() ? 'font-weight: 700; color: #1b7a1b;' : ''">{$recipient->getCanonicalName()}</a><br/>

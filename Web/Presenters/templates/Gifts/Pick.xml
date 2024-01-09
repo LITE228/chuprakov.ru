@@ -14,7 +14,7 @@
 {block content}
     <div class="gift_grid infContainer">
         <div n:foreach="$gifts as $gift" n:class="gift_sel, infObj, !$gift->canUse($thisUser) ? disabled" data-gift="{$gift->getId()}">
-            <img class="gift_pic" src="{$gift->getImage(2)}" alt="{_gift}" />
+            <img class="gift_pic" src="{$gift->getImage(2)}" alt="{_gift}" loading=lazy />
             
             <strong class="gift_price">
                 {if $gift->isFree()}

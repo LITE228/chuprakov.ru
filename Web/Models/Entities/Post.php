@@ -159,6 +159,10 @@ class Post extends Postable
                     return 'iphone';
                     break;
 
+                case 'windows_phone':
+                    return 'wphone';
+                    break;    
+
                 case 'vika_touch': // кика хохотач ахахахаххахахахахах
                 case 'vk4me':
                     return 'mobile';

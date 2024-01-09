@@ -456,28 +456,6 @@ class Club extends RowModel
         return $res;
     }
 
-    function isIgnoredBy(User $user): bool
-    {
-        $ctx  = DB::i()->getContext();
-        $data = [
-            "owner"            => $user->getId(),
-            "ignored_source"   => $this->getId() * -1,
-        ];
-
-        $sub  = $ctx->table("ignored_sources")->where($data);
-
-        if(!$sub->fetch()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    function getRealId(): int
-    {
-        return $this->getId() * -1;
-    }
-
     function isEveryoneCanUploadAudios(): bool
     {
         return (bool) $this->getRecord()->everyone_can_upload_audios;
@@ -490,8 +468,14 @@ class Club extends RowModel
 
         return $this->isEveryoneCanUploadAudios() || $this->canBeModifiedBy($user);
     }
+
+    function getRealId()
+    {
+        return $this->getId() * -1;
+    }
     
 	use Traits\TBackDrops;
     use Traits\TSubscribable;
     use Traits\TAudioStatuses;
+    use Traits\TIgnorable;
 }
