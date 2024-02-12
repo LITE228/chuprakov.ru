@@ -12,6 +12,7 @@
         <meta n:ifset="$csrfToken" name="csrf" value="{$csrfToken}" />
 
         <script src="/language/{php echo getLanguage()}.js" crossorigin="anonymous"></script>
+        <script src="/assets/packages/static/openvk/js/node_modules/cropperjs/dist/cropper.js" type="module"></script>
         {script "js/node_modules/jquery/dist/jquery.min.js"}
         {script "js/node_modules/jquery-ui/dist/jquery-ui.min.js"}
         {script "js/node_modules/umbrellajs/umbrella.min.js"}
@@ -21,6 +22,7 @@
         {script "js/al_music.js"}
 		
 		{css "js/node_modules/tippy.js/dist/backdrop.css"}
+        {css "js/node_modules/cropperjs/dist/cropper.css"}
         {css "js/node_modules/tippy.js/dist/border.css"}
         {css "js/node_modules/tippy.js/dist/svg-arrow.css"}
         {css "js/node_modules/tippy.js/themes/light.css"}
@@ -270,6 +272,7 @@
                             
                             <a n:if="OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['enable'] && $thisUser->getLeftMenuItemStatus('poster')" href="{php echo OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['link']}" >
                                 <img src="{php echo OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['src']}" alt="{php echo OPENVK_ROOT_CONF['openvk']['preferences']['adPoster']['caption']}" class="psa-poster" style="max-width: 100%; margin-top: 10px;" />
+                                    <small>18+</small>
                             </a>
 
                             <div class="floating_sidebar">

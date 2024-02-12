@@ -66,6 +66,7 @@
                         </td>
                         <td class="regform-right">
                             <input type="email" name="email" required />
+                            Потребуется подтверждение
                         </td>
                     </tr>
                     <tr>
