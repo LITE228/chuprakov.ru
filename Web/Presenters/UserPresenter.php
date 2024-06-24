@@ -364,8 +364,8 @@ final class UserPresenter extends OpenVKPresenter
             $photo->setFile($_FILES["blob"]);
             $photo->setCreated(time());
             $photo->save();
-        } catch(ISE $ex) {
-            $this->flashFail("err", tr("error"), tr("error_upload_failed"));
+        } catch(\Throwable $ex) {
+            $this->flashFail("err", tr("error"), tr("error_upload_failed"), NULL, (int)$this->postParam("ajax", true) == 1);
         }
         
         $album = (new Albums)->getUserAvatarAlbum($this->user->identity);
@@ -376,22 +376,56 @@ final class UserPresenter extends OpenVKPresenter
         $flags = 0;
         $flags |= 0b00010000;
 
-        $post = new Post;
-        $post->setOwner($this->user->id);
-        $post->setWall($this->user->id);
-        $post->setCreated(time());
-        $post->setContent("");
-        $post->setFlags($flags);
-        $post->save();
-        $post->attach($photo);
-        if($this->postParam("ava", true) == (int)1) {
+        if($this->postParam("on_wall") == 1) {
+            $post = new Post;
+            $post->setOwner($this->user->id);
+            $post->setWall($this->user->id);
+            $post->setCreated(time());
+            $post->setContent("");
+            $post->setFlags($flags);
+            $post->save();
+
+            $post->attach($photo);
+        }
+
+        if((int)$this->postParam("ajax", true) == 1) {
             $this->returnJson([
-                "url" => $photo->getURL(),
-                "id" => $photo->getPrettyId()
+                "success"   => true,
+                "new_photo" => $photo->getPrettyId(),
+                "url"       => $photo->getURL(),
             ]);
         } else {
             $this->flashFail("succ", tr("photo_saved"), tr("photo_saved_comment"));
         }
+    }
+
+    function renderDeleteAvatar() {
+        $this->assertUserLoggedIn();
+        $this->willExecuteWriteAction();
+
+        $avatar = $this->user->identity->getAvatarPhoto();
+
+        if(!$avatar)
+            $this->flashFail("succ", tr("error"), "no avatar bro", NULL, true);
+
+        $avatar->isolate();
+
+        $newAvatar = $this->user->identity->getAvatarPhoto();
+
+        if(!$newAvatar)
+            $this->returnJson([
+                "success" => true,
+                "has_new_photo" => false,
+                "new_photo" => NULL,
+                "url"       => "/assets/packages/static/openvk/img/camera_200.png",
+            ]);
+        else
+            $this->returnJson([
+                "success" => true,
+                "has_new_photo" => true,
+                "new_photo" => $newAvatar->getPrettyId(),
+                "url"       => $newAvatar->getURL(),
+            ]);
     }
     
     function renderSettings(): void
@@ -561,6 +595,18 @@ final class UserPresenter extends OpenVKPresenter
             "main", "security", "privacy", "finance", "finance.top-up", "interface"
         ]) ? $this->queryParam("act")
             : "main";
+
+        if($this->template->mode == "finance") {
+            $address = OPENVK_ROOT_CONF["openvk"]["preferences"]["ton"]["address"];
+            $text    = str_replace("$1", (string) $this->user->identity->getId(), OPENVK_ROOT_CONF["openvk"]["preferences"]["ton"]["hint"]);
+            $qrCode  = explode("base64,", (new QRCode(new QROptions([
+                "imageTransparent" => false
+            ])))->render("ton://transfer/$address?text=$text"));
+
+            $this->template->qrCodeType = substr($qrCode[0], 5);
+            $this->template->qrCodeData = $qrCode[1];
+        }    
+
         $this->template->user   = $user;
         $this->template->themes = Themepacks::i()->getThemeList();
     }

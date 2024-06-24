@@ -863,6 +863,11 @@ class User extends RowModel
         return (bool) $this->getRecord()->sex;
     }
 
+    function isNeutral(): bool
+    {
+        return (bool) $this->getRecord()->sex == 2;
+    }
+
     function isVerified(): bool
     {
         return (bool) $this->getRecord()->verified;
