@@ -3,6 +3,7 @@ use Chandler\Database\DatabaseConnection;
 use Chandler\Session\Session;
 use openvk\Web\Util\Localizator;
 use openvk\Web\Util\Bitmask;
+use function PHP81_BC\strftime;
 
 function _ovk_check_environment(): void
 {
@@ -18,6 +19,7 @@ function _ovk_check_environment(): void
     
     $requiredExtensions = [
         "gd",
+        "imagick",
         "fileinfo",
         "PDO",
         "pdo_mysql",
@@ -32,7 +34,8 @@ function _ovk_check_environment(): void
         "openssl",
         "json",
         "tokenizer",
-        "libxml",
+        "xml",
+        "intl",
         "date",
         "session",
         "SPL",
@@ -164,7 +167,7 @@ function isLanguageAvailable($lg): bool
 
 function getBrowsersLanguage(): array
 {
-    if ($_SERVER['HTTP_ACCEPT_LANGUAGE'] != null) return mb_split(",", mb_split(";", $_SERVER['HTTP_ACCEPT_LANGUAGE'])[0]);
+    if ($_SERVER['HTTP_ACCEPT_LANGUAGE'] != NULL) return mb_split(",", mb_split(";", $_SERVER['HTTP_ACCEPT_LANGUAGE'])[0]);
     else return array();
 }
 
@@ -172,7 +175,7 @@ function eventdb(): ?DatabaseConnection
 {
     $conf = OPENVK_ROOT_CONF["openvk"]["credentials"]["eventDB"];
     if(!$conf["enable"])
-        return null;
+        return NULL;
     
     $db = (object) $conf["database"];
     return DatabaseConnection::connect([
@@ -196,8 +199,8 @@ function ovk_proc_strtrim(string $string, int $length = 0): string
 function ovk_strftime_safe(string $format, ?int $timestamp = NULL): string
 {
     $sessionOffset = intval(Session::i()->get("_timezoneOffset"));
-    $str = strftime($format, $timestamp + ($sessionOffset * MINUTE) * -1 ?? time() + ($sessionOffset * MINUTE) * -1);
-    if(PHP_SHLIB_SUFFIX === "dll") {
+    $str = strftime($format, $timestamp + ($sessionOffset * MINUTE) * -1 ?? time() + ($sessionOffset * MINUTE) * -1, tr("__locale") !== '@__locale' ? tr("__locale") : NULL);
+    if(PHP_SHLIB_SUFFIX === "dll" && version_compare(PHP_VERSION, "8.1.0", "<")) {
         $enc = tr("__WinEncoding");
         if($enc === "@__WinEncoding")
             $enc = "Windows-1251";
@@ -229,7 +232,7 @@ function ovk_is_ssl(): bool
     return $GLOBALS["requestIsSSL"];
 }
 
-function parseAttachments(string $attachments)
+function parseAttachments(string $attachments): array
 {
     $attachmentsArr = explode(",", $attachments);
     $returnArr      = [];
@@ -246,9 +249,10 @@ function parseAttachments(string $attachments)
         elseif(str_contains($attachment, "audio"))
             $attachmentType = "audio";
 
-        $attachmentIds = str_replace($attachmentType, "", $attachment);
-        $attachmentOwner = (int)explode("_", $attachmentIds)[0];
-        $attachmentId    = (int)end(explode("_", $attachmentIds));
+        $attachmentIds   = str_replace($attachmentType, "", $attachment);
+        $attachmentOwner = (int) explode("_", $attachmentIds)[0];
+        $gatoExplotano   = explode("_", $attachmentIds);
+        $attachmentId    = (int) end($gatoExplotano);
 
         switch($attachmentType) {
             case "photo":
@@ -273,13 +277,6 @@ function parseAttachments(string $attachments)
     return $returnArr;
 }
 
-function getEntity(int $id) {
-    if($id > 0)
-        return (new openvk\Web\Models\Repositories\Users)->get($id);
-
-    return (new openvk\Web\Models\Repositories\Clubs)->get(abs($id));
-}
-
 function ovk_scheme(bool $with_slashes = false): string
 {
     $scheme = ovk_is_ssl() ? "https" : "http";
@@ -295,8 +292,8 @@ return (function() {
 
     setlocale(LC_TIME, "POSIX");
 
-    // TODO: Default language in config
-    if(Session::i()->get("lang") == null) {
+    # TODO: Default language in config
+    if(Session::i()->get("lang") == NULL) {
         $languages = array_reverse(getBrowsersLanguage());
         foreach($languages as $lg) {
             if(isLanguageAvailable($lg)) setLanguage($lg);    
@@ -306,13 +303,13 @@ return (function() {
     if(empty($_SERVER["REQUEST_SCHEME"]))
         $_SERVER["REQUEST_SCHEME"] = empty($_SERVER["HTTPS"]) ? "HTTP" : "HTTPS";
 
-    $showCommitHash = false; # plz remove when release
+    $showCommitHash = true; # plz remove when release
     if(is_dir($gitDir = OPENVK_ROOT . "/.git") && $showCommitHash)
         $ver = trim(`git --git-dir="$gitDir" log --pretty="%h" -n1 HEAD` ?? "Unknown version") . "-nightly";
     else
         $ver = "Public Technical Preview 4";
 
-    // Unix time constants
+    # Unix time constants
     define('MINUTE', 60);
     define('HOUR', 60 * MINUTE);
     define('DAY', 24 * HOUR);
@@ -321,8 +318,8 @@ return (function() {
     define('YEAR', 365 * DAY);
 
     define("nullptr", NULL);
-    define("OPENVK_DEFAULT_INSTANCE_NAME", "VepurOVK", false);
-    define("OPENVK_VERSION", "OpenVK Instance ($ver)", false);
+    define("OPENVK_DEFAULT_INSTANCE_NAME", "OpenVK", false);
+    define("OPENVK_VERSION", "Altair Preview ($ver)", false);
     define("OPENVK_DEFAULT_PER_PAGE", 10, false);
     define("__OPENVK_ERROR_CLOCK_IN_FUTURE", "Server clock error: FK1200-DTF", false);
 });
